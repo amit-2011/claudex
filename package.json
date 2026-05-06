@@ -1,32 +1,45 @@
 {
-  "name": "claudex",
+  "name": "clodex",
   "version": "0.1.0",
   "description": "Claude Code context layer — turns natural language into precise prompts using your codebase knowledge",
   "type": "module",
   "bin": {
-    "claudex": "./bin/cli.js"
+    "clodex": "./bin/cli.js"
   },
   "files": [
     "bin",
     "src",
-    "templates"
+    "templates",
+    "README.md"
   ],
   "engines": {
     "node": ">=18.0.0"
   },
-  "scripts": {
-    "test": "node --experimental-vm-modules node_modules/.bin/vitest run",
-    "dev": "node bin/cli.js"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tvamit/claudex.git"
   },
+  "homepage": "https://github.com/tvamit/claudex#readme",
+  "bugs": {
+    "url": "https://github.com/tvamit/claudex/issues"
+  },
+  "author": "tvamit",
   "keywords": [
     "claude",
     "claude-code",
     "ai",
-    "prompt",
+    "prompt-engineering",
     "context",
-    "developer-tools"
+    "developer-tools",
+    "nextjs",
+    "nestjs",
+    "react"
   ],
   "license": "MIT",
+  "scripts": {
+    "prepublishOnly": "node bin/cli.js --version",
+    "dev": "node bin/cli.js"
+  },
   "devDependencies": {
     "vitest": "^1.6.0"
   }

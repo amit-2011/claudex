@@ -55,7 +55,7 @@ async function main() {
 
     default: {
       console.error(`\n  Unknown command: ${command}`);
-      console.error(`  Run "npx clodex --help" for usage.\n`);
+      console.error(`  Run "npx promptpilot-ai --help" for usage.\n`);
       process.exit(1);
     }
   }
@@ -63,13 +63,13 @@ async function main() {
 
 function printHelp() {
   console.log(`
-  \x1b[36mclodex\x1b[0m v${getVersion()} — Claude Code Context Layer
+  \x1b[36mpromptpilot-ai\x1b[0m v${getVersion()} — Claude Code Context Layer
 
   \x1b[1mUsage:\x1b[0m
 
-    npx clodex init           Set up clodex in the current project
-    npx clodex sync           Re-scan and update all context files
-    npx clodex --version      Show version
+    npx promptpilot-ai init           Set up promptpilot-ai in the current project
+    npx promptpilot-ai sync           Re-scan and update all context files
+    npx promptpilot-ai --version      Show version
 
   \x1b[1mAfter init, use these Claude Code slash commands:\x1b[0m
 
@@ -79,7 +79,7 @@ function printHelp() {
 
   \x1b[1mExamples:\x1b[0m
 
-    npx clodex init
+    npx promptpilot-ai init
     /ask add a login page with email and password
     /plan refactor the auth module to use JWT instead of sessions
 `);

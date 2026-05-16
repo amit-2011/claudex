@@ -1,10 +1,10 @@
 {
-  "name": "clodex",
+  "name": "promptpilot-ai",
   "version": "0.1.0",
   "description": "Claude Code context layer — turns natural language into precise prompts using your codebase knowledge",
   "type": "module",
   "bin": {
-    "clodex": "./bin/cli.js"
+    "promptpilot-ai": "./bin/cli.js"
   },
   "files": [
     "bin",

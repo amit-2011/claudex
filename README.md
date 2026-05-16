@@ -1,4 +1,4 @@
-# clodex
+# promptpilot-ai
 
 Claude Code context layer — turns natural language into precise prompts using your codebase knowledge.
 
@@ -14,7 +14,7 @@ Claude Code context layer — turns natural language into precise prompts using 
 
 ```bash
 # In your project directory
-npx clodex@latest init
+npx promptpilot-ai@latest init
 ```
 
 Then open the project in Claude Code:
@@ -49,8 +49,8 @@ your-project/
 
 | Command | Description |
 |---|---|
-| `npx clodex init` | First-time setup — scan project and generate context |
-| `npx clodex sync` | Re-scan after major restructuring or new modules |
+| `npx promptpilot-ai init` | First-time setup — scan project and generate context |
+| `npx promptpilot-ai sync` | Re-scan after major restructuring or new modules |
 
 ## Claude Code slash commands (after init)
 
@@ -72,15 +72,15 @@ More stacks coming soon.
 
 ## Token savings
 
-Without clodex, Claude explores your codebase blindly — 8–12 file reads per task (~15,000–25,000 tokens).
+Without promptpilot-ai, Claude explores your codebase blindly — 8–12 file reads per task (~15,000–25,000 tokens).
 
-With clodex, the right context is pre-loaded — 2–3 reads per task (~4,000–8,000 tokens). **~60–70% fewer tokens per task.**
+With promptpilot-ai, the right context is pre-loaded — 2–3 reads per task (~4,000–8,000 tokens). **~60–70% fewer tokens per task.**
 
 ## Context sync
 
 The git post-commit hook auto-updates context for changed files after each commit.
 
-For major changes (new module, big refactor), run `npx clodex sync` manually.
+For major changes (new module, big refactor), run `npx promptpilot-ai sync` manually.
 
 ## License
 

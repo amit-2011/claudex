@@ -1,40 +1,119 @@
-# promptpilot-ai
+<div align="center">
 
-Claude Code context layer — turns natural language into precise prompts using your codebase knowledge.
+# 🧠 promptpilot-ai
 
-**No API key needed. Uses your own Claude Code plan.**
+### The AI context layer for your codebase
 
-## What it does
+**Works with Claude Code · Cursor · Both**
 
-1. **Setup** — Scans your project and generates `.claude/context/` files describing your architecture, stack, modules, and patterns
-2. **Prompt enhancement** — `/ask` and `/plan` slash commands load the right context automatically before responding
-3. **Multi-repo coordination** — In a workspace with separate frontend and backend repos, automatically maps API calls to controllers so Claude implements both sides together
-4. **Auto-sync** — A git post-commit hook keeps context fresh as your code changes
+[![npm](https://img.shields.io/npm/v/promptpilot-ai?color=blue&style=flat-square)](https://www.npmjs.com/package/promptpilot-ai)
+[![license](https://img.shields.io/npm/l/promptpilot-ai?style=flat-square)](./LICENSE)
+[![node](https://img.shields.io/node/v/promptpilot-ai?style=flat-square)](https://nodejs.org)
 
-## Quick start
+> Scan your project once → AI understands everything → no more blind file hunting
 
-### Single repo
+</div>
+
+---
+
+## 🤔 The Problem
+
+Every time you ask Claude or Cursor to build something, it starts from zero:
+
+```
+AI: Let me look at your project structure...
+AI: Reading package.json...
+AI: Reading src/app/...
+AI: Reading components/...
+AI: Hmm, where is the auth module?
+```
+
+That's **8–12 file reads** (~25,000 tokens) just to understand context — before writing a single line of code.
+
+---
+
+## ✅ The Solution
+
+Run `promptpilot-ai init` once. It scans your codebase and writes structured context files that AI tools read automatically.
+
+```
+AI: (reads .claude/context/architecture.md → knows everything)
+AI: Got it. Here's the implementation plan...
+```
+
+**2–3 reads. ~6,000 tokens. Straight to the code.**
+
+---
+
+## 🚀 Quick Start
 
 ```bash
-# In your project directory (git repo or not)
+# In your project directory
 npx promptpilot-ai@latest init
 ```
 
-Then open the project in Claude Code:
+You'll be asked which AI tool you're using:
 
 ```
-/ask add a login page with email and password
-/plan refactor the auth module to use JWT
+? Which AI tool are you using?
+  ❯ Claude Code
+    Cursor
+    Both
 ```
 
-### Multi-repo workspace (backend + frontend)
+That's it. Open your project in Claude or Cursor — context is loaded automatically.
 
-No `.git` at the root? No problem. Run init from your workspace root:
+---
+
+## 🗂️ What Gets Generated
+
+### For Claude Code
+
+```
+your-project/
+├── CLAUDE.md                        ← context index (auto-loaded by Claude)
+├── .claude/
+│   ├── settings.json                ← permissions pre-configured
+│   ├── commands/
+│   │   ├── ask.md                   ← /ask slash command
+│   │   ├── plan.md                  ← /plan slash command
+│   │   └── sync.md                  ← /sync slash command
+│   └── context/
+│       ├── architecture.md          ← project structure
+│       ├── stack.md                 ← tech stack & commands
+│       ├── patterns.md              ← naming & code conventions
+│       └── modules/
+│           ├── auth.md
+│           ├── components.md
+│           └── ...
+└── .git/hooks/post-commit           ← auto-sync on commit
+```
+
+### For Cursor
+
+```
+your-project/
+└── .cursor/
+    └── rules/
+        ├── architecture.mdc         ← always loaded (alwaysApply: true)
+        ├── stack.mdc                ← always loaded
+        ├── patterns.mdc             ← always loaded
+        └── modules/
+            ├── auth.mdc             ← loaded when you open auth files
+            ├── components.mdc       ← loaded when you open component files
+            └── ...
+```
+
+> 💡 Cursor's `.mdc` rules use `alwaysApply: true` for global context and file-glob matching for module-level context — so you only pay for what's relevant.
+
+---
+
+## 🏗️ Multi-Repo Workspace (Frontend + Backend)
 
 ```
 your-workspace/        ← run init here
   backend/             ← NestJS / Express
-  admin/               ← Next.js / React
+  frontend/            ← Next.js / React
 ```
 
 ```bash
@@ -42,134 +121,92 @@ cd your-workspace
 npx promptpilot-ai@latest init
 ```
 
-promptpilot-ai will:
-- Auto-detect `backend/` and `admin/` from their `package.json`
-- Classify each repo as frontend or backend
-- Scan backend controllers/routes and frontend API calls
-- Generate a **bridge map** linking frontend components to backend endpoints
-
-Then in Claude Code:
-
-```
-/ask add a user profile page
-```
-
-Claude reads `bridge.md`, finds the matching backend endpoint, reads both files, and implements the frontend **and** backend together in one pass.
-
-## What gets created
-
-### Single repo
-
-```
-your-project/
-  .claude/
-    commands/
-      ask.md         ← /ask command
-      plan.md        ← /plan command
-      sync.md        ← /sync command
-    context/
-      architecture.md
-      stack.md
-      patterns.md
-      modules/
-        auth.md
-        components.md
-        ...
-  CLAUDE.md          ← context index (auto-updated)
-  .git/hooks/post-commit  ← auto-sync hook
-```
-
-### Multi-repo workspace
-
-```
-your-workspace/
-  .claude/
-    commands/
-      ask.md
-      plan.md
-      sync.md
-    context/
-      bridge.md      ← frontend ↔ backend API map  ← NEW
-  backend/
-    .claude/
-      context/
-        architecture.md
-        stack.md
-        patterns.md
-        modules/
-  admin/
-    .claude/
-      context/
-        architecture.md
-        stack.md
-        patterns.md
-        modules/
-```
-
-### bridge.md example
+promptpilot-ai auto-detects both repos and generates a **bridge map**:
 
 ```markdown
-## Endpoint Map (3 matched)
+## Endpoint Map
 
-| Method | Path     | Frontend File                    | Backend File                        | Handler      |
-|--------|----------|----------------------------------|-------------------------------------|--------------|
-| GET    | /users   | src/app/users/page.tsx           | src/users/users.controller.ts       | findAll()    |
-| POST   | /auth/login | src/app/auth/login/page.tsx   | src/auth/auth.controller.ts         | login()      |
-
-## Unmatched Frontend Calls
-| Method | Path          | Frontend File                    |
-|--------|---------------|----------------------------------|
-| DELETE | /users/:id    | src/app/users/[id]/page.tsx      |
+| Method | Path        | Frontend File               | Backend File                    | Handler   |
+|--------|-------------|-----------------------------|---------------------------------|-----------|
+| GET    | /users      | src/app/users/page.tsx      | src/users/users.controller.ts   | findAll() |
+| POST   | /auth/login | src/app/auth/login/page.tsx | src/auth/auth.controller.ts     | login()   |
 ```
 
-## Commands
+Now when you say `/ask add a user profile page`, AI reads `bridge.md`, finds the matching endpoint, and implements **both** frontend and backend in one pass.
+
+---
+
+## 📊 Token Savings
+
+| | Without promptpilot-ai | With promptpilot-ai |
+|---|---|---|
+| **File reads per task** | 8–12 | 2–3 |
+| **Tokens per task** | ~25,000 | ~6,000 |
+| **Savings** | — | **~70% fewer tokens** |
+| **Multi-repo cross-lookup** | Manual, many reads | Auto via bridge.md |
+
+---
+
+## ⚡ Commands
+
+### CLI
 
 | Command | Description |
 |---|---|
-| `npx promptpilot-ai init` | First-time setup — scan project(s) and generate context |
-| `npx promptpilot-ai sync` | Re-scan after major restructuring, new modules, or new endpoints |
+| `npx promptpilot-ai init` | First-time setup — scan project and generate context |
+| `npx promptpilot-ai sync` | Re-scan after major restructuring or new modules |
 
-## Claude Code slash commands (after init)
+### Claude Code Slash Commands (after init)
 
 | Command | Description |
 |---|---|
-| `/ask <request>` | Natural language → proper prompt → plan → execute (cross-repo aware) |
-| `/plan <request>` | Generate a plan only — no execution until you approve |
-| `/sync` | Trigger context sync from inside Claude Code |
+| `/ask <request>` | Natural language → plan → execute (cross-repo aware) |
+| `/plan <request>` | Generate a plan only — review before executing |
+| `/sync` | Trigger a context sync from inside Claude Code |
 
-## Supported stacks
+---
 
-**Frontend**
-- Next.js (App Router + Pages Router)
-- React (Vite SPA)
-- Vue, Svelte, Astro, Remix
+## 🛠️ Supported Stacks
 
-**Backend**
-- NestJS
-- Express
-- Fastify, Hono, Koa
+| Category | Supported |
+|---|---|
+| **Frontend** | Next.js (App + Pages Router), React (Vite), Vue, Svelte, Astro, Remix |
+| **Backend** | NestJS, Express, Fastify, Hono, Koa |
+| **Languages** | TypeScript, JavaScript |
+| **Databases** | PostgreSQL, MySQL, MongoDB, SQLite |
+| **ORMs** | Prisma, Drizzle, TypeORM |
+| **Package Managers** | pnpm, npm, yarn |
+| **Testing** | Vitest, Jest |
 
-**Languages**
-- TypeScript, JavaScript
+---
 
-## No git required
+## 🔄 Keeping Context Fresh
 
-Works with or without a `.git` folder. If git is present, `git ls-files` is used for fast file scanning. If not, the filesystem is walked directly (skipping `node_modules`, `dist`, `.next`, etc.).
+| Trigger | What happens |
+|---|---|
+| `git commit` | Post-commit hook auto-updates changed modules |
+| New module or endpoint | Run `npx promptpilot-ai sync` manually |
+| Major refactor | Run `npx promptpilot-ai sync` manually |
 
-## Token savings
+---
 
-Without promptpilot-ai, Claude explores your codebase blindly — 8–12 file reads per task (~15,000–25,000 tokens).
+## ❓ FAQ
 
-With promptpilot-ai, the right context is pre-loaded — 2–3 reads per task (~4,000–8,000 tokens). **~60–70% fewer tokens per task.**
+**Do I need an API key?**
+No. Uses your existing Claude Code plan or Cursor subscription — no extra API keys.
 
-In multi-repo mode, bridge.md eliminates the back-and-forth of finding matching controllers — Claude goes straight to the right files on both sides.
+**Does it work without git?**
+Yes. Without `.git`, the filesystem is walked directly (skipping `node_modules`, `dist`, `.next`, etc.).
 
-## Context sync
+**Can I use it with both Claude and Cursor?**
+Yes — select "Both" during init. It generates `.claude/` and `.cursor/rules/` simultaneously.
 
-The git post-commit hook auto-updates context for changed files after each commit.
+**Is it safe to commit the generated files?**
+Yes, commit them. Teammates get context immediately without running init themselves.
 
-For major changes (new module, new API endpoint, big refactor), run `npx promptpilot-ai sync` manually.
+---
 
-## License
+## 📄 License
 
 MIT
+

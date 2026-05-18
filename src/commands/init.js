@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { scanProject } from '../scanner/index.js';
 import { detectSubRepos } from '../scanner/multi-repo.js';
 import { generateContextFiles } from '../generators/context.js';
+import { generateCursorRules } from '../generators/cursor-rules.js';
 import { generateBridgeFile } from '../generators/bridge.js';
 import { updateClaudeMd } from '../generators/claude-md.js';
 import { writeClaudeSettings } from '../generators/settings.js';
@@ -24,10 +25,13 @@ export async function runInit(cwd) {
     console.log(`  ${yellow('No git repo found')} ${dim('— scanning filesystem directly')}\n`);
   }
 
+  const target = await selectTarget();
+  console.log('');
+
   // Multi-repo mode: root folder with sub-repos (backend + frontend)
   const subRepos = detectSubRepos(cwd);
   if (subRepos.length >= 2) {
-    await runMultiRepoInit(cwd, subRepos);
+    await runMultiRepoInit(cwd, subRepos, target);
     return;
   }
 
@@ -47,12 +51,21 @@ export async function runInit(cwd) {
     }
   }
 
-  await writeOutputFiles(cwd, scanData, isNew);
+  await writeOutputFiles(cwd, scanData, isNew, target);
 
-  printSuccess(cwd, scanData, isNew);
+  printSuccess(cwd, scanData, isNew, target);
 }
 
-async function runMultiRepoInit(cwd, subRepos) {
+async function selectTarget() {
+  const choice = await select('Which AI tool are you using?', [
+    { label: 'Claude Code', value: 'claude' },
+    { label: 'Cursor', value: 'cursor' },
+    { label: 'Both', value: 'both' },
+  ]);
+  return choice.value;
+}
+
+async function runMultiRepoInit(cwd, subRepos, target = 'claude') {
   const frontend = subRepos.find((r) => r.role === 'frontend');
   const backend = subRepos.find((r) => r.role === 'backend');
 
@@ -79,30 +92,45 @@ async function runMultiRepoInit(cwd, subRepos) {
 
   // Write context for each sub-repo into its own folder
   for (const repo of scanResults) {
-    const written = generateContextFiles(repo.path, repo.scanData);
+    if (target === 'claude' || target === 'both') {
+      generateContextFiles(repo.path, repo.scanData);
+      updateClaudeMd(repo.path, repo.scanData.stack, repo.scanData.modules);
+      writeClaudeSettings(repo.path, repo.scanData.stack);
+      installGitHook(repo.path);
+    }
+    if (target === 'cursor' || target === 'both') {
+      generateCursorRules(repo.path, repo.scanData);
+    }
     console.log(`  ${tick} ${cyan(repo.name + '/')} context`);
-    updateClaudeMd(repo.path, repo.scanData.stack, repo.scanData.modules);
-    writeClaudeSettings(repo.path, repo.scanData.stack);
-    installGitHook(repo.path);
   }
 
   // Write root-level context + bridge
-  copyCommandTemplates(cwd);
+  if (target === 'claude' || target === 'both') {
+    copyCommandTemplates(cwd);
+  }
+
   if (frontend && backend) {
     const frontendData = scanResults.find((r) => r.name === frontend.name);
     const backendData = scanResults.find((r) => r.name === backend.name);
     if (frontendData && backendData) {
       generateBridgeFile(cwd, frontendData, backendData);
-      console.log(`  ${tick} ${cyan('.claude/context/bridge.md')} ${dim('(frontend ↔ backend API map)')}`);
+      const bridgePath = target === 'cursor' ? '.cursor/bridge.md' : '.claude/context/bridge.md';
+      console.log(`  ${tick} ${cyan(bridgePath)} ${dim('(frontend ↔ backend API map)')}`);
     }
   }
 
   console.log('');
   console.log(`  ${green('─'.repeat(40))}`);
-  console.log(`  ${tick} ${bold('Ready!')} Open this folder in Claude Code and try:`);
-  console.log('');
-  console.log(`    ${cyan('/ask')} add a user profile page`);
-  console.log(`    ${dim('Claude will read bridge.md and coordinate both repos')}`);
+
+  if (target === 'claude' || target === 'both') {
+    console.log(`  ${tick} ${bold('Ready!')} Open this folder in Claude Code and try:`);
+    console.log('');
+    console.log(`    ${cyan('/ask')} add a user profile page`);
+    console.log(`    ${dim('Claude will read bridge.md and coordinate both repos')}`);
+  }
+  if (target === 'cursor' || target === 'both') {
+    console.log(`  ${tick} ${bold('Ready!')} Open this folder in Cursor — rules are auto-loaded from ${cyan('.cursor/rules/')}`);
+  }
   console.log('');
 }
 
@@ -111,11 +139,13 @@ export async function runSync(cwd) {
     console.log(`\n  ${yellow('No git repo found')} ${dim('— scanning filesystem directly')}`);
   }
 
-  console.log(`\n  ${cyan('claudex')} — Syncing project context\n`);
+  console.log(`\n  ${cyan('promptpilot-ai')} — Syncing project context\n`);
+
+  const target = detectExistingTarget(cwd);
 
   const subRepos = detectSubRepos(cwd);
   if (subRepos.length >= 2) {
-    await runMultiRepoInit(cwd, subRepos);
+    await runMultiRepoInit(cwd, subRepos, target);
     return;
   }
 
@@ -125,7 +155,7 @@ export async function runSync(cwd) {
     process.exit(1);
   }
 
-  await writeOutputFiles(cwd, scanData, false);
+  await writeOutputFiles(cwd, scanData, false, target);
 
   console.log(`\n  ${tick} Context updated.\n`);
 }
@@ -135,11 +165,18 @@ export async function runUpdateContext(cwd, changedFiles) {
 
   const { scanChangedFiles } = await import('../scanner/index.js');
   const { regenerateModuleFiles } = await import('../generators/context.js');
+  const { regenerateCursorModuleFiles } = await import('../generators/cursor-rules.js');
 
   const result = await scanChangedFiles(cwd, changedFiles);
   if (!result || !result.affectedModules.length) return;
 
-  regenerateModuleFiles(cwd, result.affectedModules);
+  const target = detectExistingTarget(cwd);
+  if (target === 'claude' || target === 'both') {
+    regenerateModuleFiles(cwd, result.affectedModules);
+  }
+  if (target === 'cursor' || target === 'both') {
+    regenerateCursorModuleFiles(cwd, result.affectedModules);
+  }
 }
 
 async function runScan(cwd) {
@@ -160,34 +197,52 @@ async function runScan(cwd) {
   return data;
 }
 
-async function writeOutputFiles(cwd, scanData, isNew) {
+async function writeOutputFiles(cwd, scanData, isNew, target = 'claude') {
   console.log(`\n  ${dim('Writing context files...')}\n`);
 
-  const written = generateContextFiles(cwd, scanData);
-  console.log(`  ${tick} ${cyan('architecture.md')}`);
-  console.log(`  ${tick} ${cyan('stack.md')}`);
-  console.log(`  ${tick} ${cyan('patterns.md')}`);
+  if (target === 'claude' || target === 'both') {
+    const written = generateContextFiles(cwd, scanData);
+    console.log(`  ${tick} ${cyan('.claude/context/architecture.md')}`);
+    console.log(`  ${tick} ${cyan('.claude/context/stack.md')}`);
+    console.log(`  ${tick} ${cyan('.claude/context/patterns.md')}`);
 
-  if (written.length > 0) {
-    console.log(`  ${tick} ${cyan('modules/')}${dim(` (${written.length} modules)`)}`);
-    for (const m of written) {
-      console.log(`    ${gray('•')} ${m.name} ${dim(`(${m.fileCount} files)`)}`);
+    if (written.length > 0) {
+      console.log(`  ${tick} ${cyan('.claude/context/modules/')}${dim(` (${written.length} modules)`)}`);
+      for (const m of written) {
+        console.log(`    ${gray('•')} ${m.name} ${dim(`(${m.fileCount} files)`)}`);
+      }
+    } else if (isNew) {
+      console.log(`  ${tick} ${cyan('.claude/context/modules/')} ${dim('(empty — add code and run sync)')}`);
     }
-  } else if (isNew) {
-    console.log(`  ${tick} ${cyan('modules/')} ${dim('(empty — add code and run npx claudex sync)')}`);
+
+    copyCommandTemplates(cwd);
+
+    const mdStatus = updateClaudeMd(cwd, scanData.stack, scanData.modules);
+    console.log(`\n  ${tick} CLAUDE.md ${dim(mdStatus)}`);
+
+    writeClaudeSettings(cwd, scanData.stack);
+    console.log(`  ${tick} .claude/settings.json`);
+
+    const hookResult = installGitHook(cwd);
+    if (hookResult.success) {
+      console.log(`  ${tick} Git hook ${dim('(post-commit auto-sync)')}`);
+    }
   }
 
-  copyCommandTemplates(cwd);
+  if (target === 'cursor' || target === 'both') {
+    const cursorWritten = generateCursorRules(cwd, scanData);
+    console.log(`  ${tick} ${cyan('.cursor/rules/architecture.mdc')}`);
+    console.log(`  ${tick} ${cyan('.cursor/rules/stack.mdc')}`);
+    console.log(`  ${tick} ${cyan('.cursor/rules/patterns.mdc')}`);
 
-  const mdStatus = updateClaudeMd(cwd, scanData.stack, scanData.modules);
-  console.log(`\n  ${tick} CLAUDE.md ${dim(mdStatus)}`);
-
-  writeClaudeSettings(cwd, scanData.stack);
-  console.log(`  ${tick} .claude/settings.json`);
-
-  const hookResult = installGitHook(cwd);
-  if (hookResult.success) {
-    console.log(`  ${tick} Git hook ${dim('(post-commit auto-sync)')}`);
+    if (cursorWritten.length > 0) {
+      console.log(`  ${tick} ${cyan('.cursor/rules/modules/')}${dim(` (${cursorWritten.length} modules)`)}`);
+      for (const m of cursorWritten) {
+        console.log(`    ${gray('•')} ${m.name} ${dim(`(${m.fileCount} files)`)}`);
+      }
+    } else if (isNew) {
+      console.log(`  ${tick} ${cyan('.cursor/rules/modules/')} ${dim('(empty — add code and run sync)')}`);
+    }
   }
 }
 
@@ -374,27 +429,44 @@ function isGitRepo(cwd) {
   }
 }
 
+function detectExistingTarget(cwd) {
+  const hasClaude = existsSync(join(cwd, '.claude'));
+  const hasCursor = existsSync(join(cwd, '.cursor', 'rules'));
+  if (hasClaude && hasCursor) return 'both';
+  if (hasCursor) return 'cursor';
+  return 'claude';
+}
+
 function printHeader() {
   console.log('');
-  console.log(`  ${bold(cyan('claudex'))} — Claude Code Context Layer`);
+  console.log(`  ${bold(cyan('promptpilot-ai'))} — AI Context Layer`);
   console.log(`  ${dim('─'.repeat(40))}`);
   console.log('');
 }
 
-function printSuccess(cwd, scanData, isNew) {
-  const pm = scanData.stack.packageManager;
+function printSuccess(cwd, scanData, isNew, target = 'claude') {
   console.log('');
   console.log(`  ${green('─'.repeat(40))}`);
-  console.log(`  ${tick} ${bold('Ready!')} Open this project in Claude Code and try:`);
-  console.log('');
-  if (isNew) {
-    console.log(`    ${cyan('/ask')} describe what you want to build`);
-  } else {
-    console.log(`    ${cyan('/ask')} what do you want to fix or build?`);
-    console.log(`    ${cyan('/plan')} describe a feature to get a plan first`);
+
+  if (target === 'claude' || target === 'both') {
+    console.log(`  ${tick} ${bold('Ready for Claude Code!')} Try:`);
+    console.log('');
+    if (isNew) {
+      console.log(`    ${cyan('/ask')} describe what you want to build`);
+    } else {
+      console.log(`    ${cyan('/ask')} what do you want to fix or build?`);
+      console.log(`    ${cyan('/plan')} describe a feature to get a plan first`);
+    }
+    console.log('');
   }
-  console.log('');
+
+  if (target === 'cursor' || target === 'both') {
+    console.log(`  ${tick} ${bold('Ready for Cursor!')} Rules auto-loaded from ${cyan('.cursor/rules/')}`);
+    console.log(`    ${dim('Cursor reads these automatically when you open files in each module')}`);
+    console.log('');
+  }
+
   console.log(`  ${dim('To update context after adding new modules:')}`);
-  console.log(`    ${dim('npx claudex sync')}`);
+  console.log(`    ${dim('npx promptpilot-ai sync')}`);
   console.log('');
 }

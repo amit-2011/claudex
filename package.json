@@ -1,7 +1,7 @@
 {
   "name": "promptpilot-ai",
-  "version": "0.2.0",
-  "description": "Claude Code context layer — turns natural language into precise prompts using your codebase knowledge",
+  "version": "0.3.0",
+  "description": "AI context layer for Claude Code and Cursor — scans your codebase once so AI understands your architecture, stack, and patterns without blind file hunting",
   "type": "module",
   "bin": {
     "promptpilot-ai": "./bin/cli.js"
@@ -23,17 +23,40 @@
   "bugs": {
     "url": "https://github.com/tvamit/claudex/issues"
   },
-  "author": "tvamit",
+  "author": {
+    "name": "tvamit",
+    "url": "https://github.com/tvamit"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tvamit"
+  },
   "keywords": [
-    "claude",
     "claude-code",
-    "ai",
+    "cursor",
+    "cursor-ai",
+    "cursor-rules",
+    "claude",
+    "ai-context",
+    "codebase-context",
+    "llm",
+    "ai-coding",
     "prompt-engineering",
-    "context",
+    "claude-md",
+    "mdc",
     "developer-tools",
+    "dx",
     "nextjs",
     "nestjs",
-    "react"
+    "react",
+    "typescript",
+    "monorepo",
+    "multi-repo",
+    "ai-assistant",
+    "copilot",
+    "code-context",
+    "project-context",
+    "ai-tools"
   ],
   "license": "MIT",
   "scripts": {

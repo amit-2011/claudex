@@ -1,6 +1,6 @@
 {
   "name": "promptpilot-ai",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Claude Code context layer — turns natural language into precise prompts using your codebase knowledge",
   "type": "module",
   "bin": {

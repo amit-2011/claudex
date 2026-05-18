@@ -3,10 +3,13 @@ Load project context before doing anything:
 1. Read `.claude/context/architecture.md` — understand project type, structure, and modules
 2. Read `.claude/context/stack.md` — understand the tech stack and conventions
 3. Read `.claude/context/patterns.md` — understand naming conventions and architectural patterns
+4. **Check if `.claude/context/bridge.md` exists** — if it does, read it to understand the frontend ↔ backend API map before planning.
 
 Now analyze this request: **$ARGUMENTS**
 
 Based on the request, identify which module(s) are involved and read the relevant file(s) from `.claude/context/modules/`.
+
+If bridge.md exists: identify whether this task touches the frontend, backend, or both. If it needs an API, find it in the bridge endpoint map or plan to create it.
 
 ---
 

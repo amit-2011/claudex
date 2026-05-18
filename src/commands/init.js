@@ -4,7 +4,9 @@ import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 import { scanProject } from '../scanner/index.js';
+import { detectSubRepos } from '../scanner/multi-repo.js';
 import { generateContextFiles } from '../generators/context.js';
+import { generateBridgeFile } from '../generators/bridge.js';
 import { updateClaudeMd } from '../generators/claude-md.js';
 import { writeClaudeSettings } from '../generators/settings.js';
 import { installGitHook } from '../hooks/install.js';
@@ -17,10 +19,16 @@ const TEMPLATES_DIR = join(__dirname, '..', '..', 'templates');
 export async function runInit(cwd) {
   printHeader();
 
-  if (!isGitRepo(cwd)) {
-    console.error(`\n  ${cross} This directory is not a git repository.`);
-    console.error(`  Run ${cyan('git init')} first, then re-run ${cyan('npx claudex init')}.\n`);
-    process.exit(1);
+  const hasGit = isGitRepo(cwd);
+  if (!hasGit) {
+    console.log(`  ${yellow('No git repo found')} ${dim('— scanning filesystem directly')}\n`);
+  }
+
+  // Multi-repo mode: root folder with sub-repos (backend + frontend)
+  const subRepos = detectSubRepos(cwd);
+  if (subRepos.length >= 2) {
+    await runMultiRepoInit(cwd, subRepos);
+    return;
   }
 
   const isNew = detectNewProject(cwd);
@@ -34,7 +42,7 @@ export async function runInit(cwd) {
     console.log(`  ${dim('Existing project detected. Scanning...')}\n`);
     scanData = await runScan(cwd);
     if (!scanData) {
-      console.error(`  ${cross} Failed to scan project. Make sure you have files committed to git.\n`);
+      console.error(`  ${cross} Failed to scan project.\n`);
       process.exit(1);
     }
   }
@@ -44,17 +52,76 @@ export async function runInit(cwd) {
   printSuccess(cwd, scanData, isNew);
 }
 
+async function runMultiRepoInit(cwd, subRepos) {
+  const frontend = subRepos.find((r) => r.role === 'frontend');
+  const backend = subRepos.find((r) => r.role === 'backend');
+
+  console.log(`  ${dim('Multi-repo workspace detected:')}\n`);
+  for (const repo of subRepos) {
+    const roleLabel = repo.role === 'frontend' ? cyan('frontend') : repo.role === 'backend' ? yellow('backend') : dim('unknown');
+    console.log(`    ${tick} ${bold(repo.name)} ${dim(`(${repo.stack?.framework?.name || repo.role})`)} — ${roleLabel}`);
+  }
+  console.log('');
+
+  const scanResults = [];
+  for (const repo of subRepos) {
+    process.stdout.write(`  ${dim(`Scanning ${repo.name}...`)}  `);
+    const data = await scanProject(repo.path);
+    if (data) {
+      console.log(`${tick} ${data.fileData.totalFiles} files`);
+      scanResults.push({ ...repo, scanData: data });
+    } else {
+      console.log(`${dim('skipped (no source files)')}`);
+    }
+  }
+
+  console.log(`\n  ${dim('Writing context files...')}\n`);
+
+  // Write context for each sub-repo into its own folder
+  for (const repo of scanResults) {
+    const written = generateContextFiles(repo.path, repo.scanData);
+    console.log(`  ${tick} ${cyan(repo.name + '/')} context`);
+    updateClaudeMd(repo.path, repo.scanData.stack, repo.scanData.modules);
+    writeClaudeSettings(repo.path, repo.scanData.stack);
+    installGitHook(repo.path);
+  }
+
+  // Write root-level context + bridge
+  copyCommandTemplates(cwd);
+  if (frontend && backend) {
+    const frontendData = scanResults.find((r) => r.name === frontend.name);
+    const backendData = scanResults.find((r) => r.name === backend.name);
+    if (frontendData && backendData) {
+      generateBridgeFile(cwd, frontendData, backendData);
+      console.log(`  ${tick} ${cyan('.claude/context/bridge.md')} ${dim('(frontend ↔ backend API map)')}`);
+    }
+  }
+
+  console.log('');
+  console.log(`  ${green('─'.repeat(40))}`);
+  console.log(`  ${tick} ${bold('Ready!')} Open this folder in Claude Code and try:`);
+  console.log('');
+  console.log(`    ${cyan('/ask')} add a user profile page`);
+  console.log(`    ${dim('Claude will read bridge.md and coordinate both repos')}`);
+  console.log('');
+}
+
 export async function runSync(cwd) {
   if (!isGitRepo(cwd)) {
-    console.error(`\n  ${cross} Not a git repository.\n`);
-    process.exit(1);
+    console.log(`\n  ${yellow('No git repo found')} ${dim('— scanning filesystem directly')}`);
   }
 
   console.log(`\n  ${cyan('claudex')} — Syncing project context\n`);
 
+  const subRepos = detectSubRepos(cwd);
+  if (subRepos.length >= 2) {
+    await runMultiRepoInit(cwd, subRepos);
+    return;
+  }
+
   const scanData = await runScan(cwd);
   if (!scanData) {
-    console.error(`  ${cross} No files found. Make sure files are committed to git.\n`);
+    console.error(`  ${cross} No files found.\n`);
     process.exit(1);
   }
 
@@ -290,11 +357,11 @@ function getDefaultPatterns(frameworkValue) {
 
 function detectNewProject(cwd) {
   try {
-    const files = execSync('git ls-files', { cwd, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+    const files = execSync('git ls-files', { cwd, encoding: 'utf8', stdio: 'pipe' }).trim().split('\n').filter(Boolean);
     const sourceFiles = files.filter((f) => /\.(ts|tsx|js|jsx|py|go|rs)$/.test(f));
     return sourceFiles.length < 3;
   } catch {
-    return true;
+    return false; // No git — let scanProject determine structure via filesystem walk
   }
 }
 

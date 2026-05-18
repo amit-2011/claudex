@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join, dirname, extname } from 'path';
 
 const ENTRY_NAMES = ['index', 'main', 'app', 'server', 'cli'];
@@ -11,15 +11,34 @@ const CONFIG_NAMES = [
   'jest.config.ts', 'vitest.config.ts', 'docker-compose.yml', 'Dockerfile',
 ];
 
-export function scanFileTree(cwd) {
-  let raw;
+const WALK_SKIP = new Set(['node_modules', '.git', 'dist', '.next', 'build', 'coverage', '.turbo', 'out', '.cache']);
+
+function walkDir(dir, base, results = []) {
+  let entries;
   try {
-    raw = execSync('git ls-files', { cwd, encoding: 'utf8' });
+    entries = readdirSync(dir, { withFileTypes: true });
   } catch {
-    return null;
+    return results;
+  }
+  for (const entry of entries) {
+    if (WALK_SKIP.has(entry.name)) continue;
+    const rel = base ? `${base}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) walkDir(join(dir, entry.name), rel, results);
+    else results.push(rel);
+  }
+  return results;
+}
+
+export function scanFileTree(cwd) {
+  let files;
+  try {
+    const raw = execSync('git ls-files', { cwd, encoding: 'utf8', stdio: 'pipe' });
+    files = raw.split('\n').filter(Boolean);
+  } catch {
+    files = walkDir(cwd, '');
   }
 
-  const files = raw.split('\n').filter(Boolean);
+  if (!files.length) return null;
   const tree = buildTree(files);
   const entryPoints = detectEntryPoints(files);
   const configFiles = detectConfigFiles(files, cwd);

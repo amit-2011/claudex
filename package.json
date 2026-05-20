@@ -17,11 +17,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/tvamit/claudex.git"
+    "url": "https://github.com/tvamit/promptpilot-ai.git"
   },
-  "homepage": "https://github.com/tvamit/claudex#readme",
+  "homepage": "https://github.com/tvamit/promptpilot-ai#readme",
   "bugs": {
-    "url": "https://github.com/tvamit/claudex/issues"
+    "url": "https://github.com/tvamit/promptpilot-ai/issues"
   },
   "author": {
     "name": "tvamit",

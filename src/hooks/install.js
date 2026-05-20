@@ -24,7 +24,7 @@ export function installGitHook(cwd) {
 
   if (existsSync(hookPath)) {
     const existing = readFileSync(hookPath, 'utf8');
-    if (existing.includes('claudex')) {
+    if (existing.includes('promptpilot-ai')) {
       return { success: true, reason: 'already installed' };
     }
     writeFileSync(hookPath, existing.trimEnd() + '\n\n' + hookContent);
@@ -37,11 +37,11 @@ export function installGitHook(cwd) {
 }
 
 function buildHookScript() {
-  return `# claudex: auto-update context on commit
+  return `# promptpilot-ai: auto-update context on commit
 if command -v npx &> /dev/null; then
   CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null)
   if [ -n "$CHANGED" ]; then
-    npx claudex update-context $CHANGED 2>/dev/null || true
+    npx promptpilot-ai update-context $CHANGED 2>/dev/null || true
   fi
 fi`;
 }

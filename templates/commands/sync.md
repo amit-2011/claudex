@@ -1,7 +1,7 @@
 Run the following shell command to regenerate all project context files:
 
 ```bash
-npx claudex sync
+npx promptpilot-ai sync
 ```
 
 This will:

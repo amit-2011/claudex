@@ -155,13 +155,14 @@ Now when you say `/ask add a user profile page`, AI reads `bridge.md`, finds the
 |---|---|
 | `npx promptpilot-ai init` | First-time setup — scan project and generate context |
 | `npx promptpilot-ai sync` | Re-scan after major restructuring or new modules |
+| `npx promptpilot-ai sync --templates` | Also refresh `.claude/commands/*.md` slash command templates (use after a promptpilot-ai upgrade) |
 
 ### Claude Code Slash Commands (after init)
 
 | Command | Description |
 |---|---|
 | `/ask <request>` | Natural language → plan → execute (cross-repo aware) |
-| `/plan <request>` | Generate a plan only — review before executing |
+| `/plan <request>` | **Interactive planning** — detects UI vs backend, shows 2–3 layout approaches as ASCII mockups for you to pick, then delivers the final plan with reusable-component reuse enforced |
 | `/sync` | Trigger a context sync from inside Claude Code |
 
 ---
@@ -187,6 +188,26 @@ Now when you say `/ask add a user profile page`, AI reads `bridge.md`, finds the
 | `git commit` | Post-commit hook auto-updates changed modules |
 | New module or endpoint | Run `npx promptpilot-ai sync` manually |
 | Major refactor | Run `npx promptpilot-ai sync` manually |
+
+---
+
+## 🔔 Staying Updated
+
+promptpilot-ai checks npm once a day (throttled, opt-out via `NO_UPDATE_NOTIFIER=1` or `CI=1`) and surfaces new versions in three places:
+
+| Where | How you see it |
+|---|---|
+| **Terminal** | Rounded banner on stderr after any `promptpilot-ai` command (only in interactive terminals, not pipes/CI) |
+| **Claude Code** | The existing `SessionStart` hook prints a one-line notice into Claude's context — Claude mentions it at the start of your first response |
+| **Cursor** | A temporary `.cursor/rules/_promptpilot-update.mdc` is auto-generated with `alwaysApply: true` so Cursor surfaces it the next time you chat |
+
+After upgrading the package (`npm i -g promptpilot-ai`), run:
+
+```bash
+npx promptpilot-ai sync --templates
+```
+
+This refreshes the slash command templates in your project, clears the notice file, and resets the cache. Zero runtime dependencies — version check uses native `fetch` only.
 
 ---
 

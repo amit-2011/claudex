@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, copyFileSync, readdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, copyFileSync, readdirSync, readFileSync, writeFileSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
@@ -13,9 +13,18 @@ import { writeClaudeSettings } from '../generators/settings.js';
 import { installGitHook } from '../hooks/install.js';
 import { select, input } from '../utils/prompt.js';
 import { tick, cross, bold, cyan, dim, green, yellow, gray } from '../utils/color.js';
+import { checkVersionAndNotify, clearVersionCache } from '../utils/version-check.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = join(__dirname, '..', '..', 'templates');
+
+function currentPkgVersion() {
+  try {
+    return JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')).version;
+  } catch {
+    return '0.0.0';
+  }
+}
 
 export async function runInit(cwd) {
   printHeader();
@@ -100,6 +109,9 @@ async function runMultiRepoInit(cwd, subRepos, target = 'claude') {
     }
     if (target === 'cursor' || target === 'both') {
       generateCursorRules(repo.path, repo.scanData);
+      if (target === 'cursor') {
+        installGitHook(repo.path);
+      }
     }
     console.log(`  ${tick} ${cyan(repo.name + '/')} context`);
   }
@@ -134,7 +146,7 @@ async function runMultiRepoInit(cwd, subRepos, target = 'claude') {
   console.log('');
 }
 
-export async function runSync(cwd) {
+export async function runSync(cwd, opts = {}) {
   if (!isGitRepo(cwd)) {
     console.log(`\n  ${yellow('No git repo found')} ${dim('— scanning filesystem directly')}`);
   }
@@ -146,6 +158,8 @@ export async function runSync(cwd) {
   const subRepos = detectSubRepos(cwd);
   if (subRepos.length >= 2) {
     await runMultiRepoInit(cwd, subRepos, target);
+    if (opts.templates) refreshTemplates(cwd, target);
+    if (opts.templates) clearVersionCache(cwd);
     return;
   }
 
@@ -157,26 +171,114 @@ export async function runSync(cwd) {
 
   await writeOutputFiles(cwd, scanData, false, target);
 
+  if (opts.templates) {
+    refreshTemplates(cwd, target);
+    clearVersionCache(cwd);
+    console.log(`  ${tick} Templates refreshed ${dim('(slash commands updated)')}`);
+  }
+
   console.log(`\n  ${tick} Context updated.\n`);
 }
 
+function refreshTemplates(cwd, target) {
+  if (target === 'claude' || target === 'both') {
+    copyCommandTemplates(cwd, { force: true });
+  }
+}
+
 export async function runUpdateContext(cwd, changedFiles) {
-  if (!changedFiles.length) return;
+  if (!changedFiles.length) {
+    await checkVersionAndNotify(cwd, currentPkgVersion());
+    return;
+  }
 
   const { scanChangedFiles } = await import('../scanner/index.js');
   const { regenerateModuleFiles } = await import('../generators/context.js');
   const { regenerateCursorModuleFiles } = await import('../generators/cursor-rules.js');
 
   const result = await scanChangedFiles(cwd, changedFiles);
-  if (!result || !result.affectedModules.length) return;
+  if (result && result.affectedModules.length) {
+    const target = detectExistingTarget(cwd);
+    if (target === 'claude' || target === 'both') {
+      regenerateModuleFiles(cwd, result.affectedModules);
+    }
+    if (target === 'cursor' || target === 'both') {
+      regenerateCursorModuleFiles(cwd, result.affectedModules);
+    }
+    writeLastSyncMarker(cwd);
+  }
 
+  await checkVersionAndNotify(cwd, currentPkgVersion());
+}
+
+export async function runUpdateContextSinceLastSync(cwd) {
+  const changed = collectChangedFilesSinceLastSync(cwd);
+  if (!changed.length) {
+    await checkVersionAndNotify(cwd, currentPkgVersion());
+    return;
+  }
+  await runUpdateContext(cwd, changed);
+}
+
+function getLastSyncPath(cwd) {
   const target = detectExistingTarget(cwd);
-  if (target === 'claude' || target === 'both') {
-    regenerateModuleFiles(cwd, result.affectedModules);
+  const dir = target === 'cursor' ? '.cursor' : '.claude';
+  return join(cwd, dir, '.last-sync');
+}
+
+function writeLastSyncMarker(cwd) {
+  try {
+    const markerPath = getLastSyncPath(cwd);
+    const dir = dirname(markerPath);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    writeFileSync(markerPath, String(Date.now()));
+  } catch {}
+}
+
+function collectChangedFilesSinceLastSync(cwd) {
+  const markerPath = getLastSyncPath(cwd);
+  let sinceMs = 0;
+  if (existsSync(markerPath)) {
+    try {
+      sinceMs = parseInt(readFileSync(markerPath, 'utf8'), 10) || 0;
+    } catch {}
   }
-  if (target === 'cursor' || target === 'both') {
-    regenerateCursorModuleFiles(cwd, result.affectedModules);
+
+  const files = new Set();
+
+  // Git-tracked changes: working tree + recent commits since marker
+  if (isGitRepo(cwd)) {
+    try {
+      const diff = execSync('git diff --name-only HEAD', { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      diff.split('\n').filter(Boolean).forEach((f) => files.add(f));
+    } catch {}
+    try {
+      const untracked = execSync('git ls-files --others --exclude-standard', { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      untracked.split('\n').filter(Boolean).forEach((f) => files.add(f));
+    } catch {}
+    if (sinceMs > 0) {
+      try {
+        const sinceSec = Math.floor(sinceMs / 1000);
+        const committed = execSync(`git log --since=${sinceSec} --name-only --pretty=format:`, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+        committed.split('\n').filter(Boolean).forEach((f) => files.add(f));
+      } catch {}
+    }
   }
+
+  // Filter to files modified after marker (mtime check) when marker exists
+  if (sinceMs > 0) {
+    return [...files].filter((rel) => {
+      try {
+        const abs = join(cwd, rel);
+        if (!existsSync(abs)) return false;
+        return statSync(abs).mtimeMs > sinceMs;
+      } catch {
+        return false;
+      }
+    });
+  }
+
+  return [...files];
 }
 
 async function runScan(cwd) {
@@ -243,17 +345,24 @@ async function writeOutputFiles(cwd, scanData, isNew, target = 'claude') {
     } else if (isNew) {
       console.log(`  ${tick} ${cyan('.cursor/rules/modules/')} ${dim('(empty — add code and run sync)')}`);
     }
+
+    if (target === 'cursor') {
+      const hookResult = installGitHook(cwd);
+      if (hookResult.success) {
+        console.log(`  ${tick} Git hook ${dim('(post-commit auto-sync)')}`);
+      }
+    }
   }
 }
 
-function copyCommandTemplates(cwd) {
+function copyCommandTemplates(cwd, { force = false } = {}) {
   const commandsDir = join(cwd, '.claude', 'commands');
   mkdirSync(commandsDir, { recursive: true });
 
   const templateCommandsDir = join(TEMPLATES_DIR, 'commands');
   for (const file of readdirSync(templateCommandsDir)) {
     const dest = join(commandsDir, file);
-    if (!existsSync(dest)) {
+    if (force || !existsSync(dest)) {
       copyFileSync(join(templateCommandsDir, file), dest);
     }
   }

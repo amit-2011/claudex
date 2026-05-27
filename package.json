@@ -1,6 +1,6 @@
 {
   "name": "promptpilot-ai",
-  "version": "0.5.0",
+  "version": "0.5.2",
   "description": "AI context layer for Claude Code and Cursor — scans your codebase once so AI understands your architecture, stack, and patterns without blind file hunting",
   "type": "module",
   "bin": {

@@ -12,7 +12,7 @@
 
 </div>
 
-![promptpilot-ai hero](./assets/hero.png)
+![promptpilot-ai hero](https://cdn.jsdelivr.net/npm/promptpilot-ai/assets/hero.png)
 
 <div align="center">
 
@@ -54,7 +54,7 @@ Pick your AI tool and you're done:
 
 Open your project in Claude Code or Cursor — context loads automatically.
 
-![promptpilot-ai terminal demo](./assets/terminal-demo.png)
+![promptpilot-ai terminal demo](https://cdn.jsdelivr.net/npm/promptpilot-ai/assets/terminal-demo.png)
 
 ---
 

@@ -1,3 +1,7 @@
+**Language:** Respond in the same language the user used in their request (English, Hinglish, Spanish, etc.). Keep code, file paths, commands, and identifiers in English.
+
+---
+
 Run the following shell command to regenerate all project context files:
 
 ```bash
@@ -5,6 +9,7 @@ npx promptpilot-ai sync
 ```
 
 This will:
+
 1. Re-scan the entire codebase
 2. Update `.claude/context/architecture.md`
 3. Update `.claude/context/stack.md`
@@ -13,6 +18,7 @@ This will:
 6. Update `CLAUDE.md`
 
 Run this command after:
+
 - Adding a new module or major feature
 - Significant refactoring or file restructuring
 - Adding major new dependencies

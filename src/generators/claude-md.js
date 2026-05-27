@@ -3,8 +3,6 @@ import { join } from 'path';
 
 const MARKER_START = '<!-- promptpilot-ai:start -->';
 const MARKER_END = '<!-- promptpilot-ai:end -->';
-const LEGACY_MARKER_START = '<!-- claudex:start -->';
-const LEGACY_MARKER_END = '<!-- claudex:end -->';
 
 export function updateClaudeMd(cwd, stack, modules) {
   const claudeMdPath = join(cwd, 'CLAUDE.md');
@@ -17,14 +15,9 @@ export function updateClaudeMd(cwd, stack, modules) {
 
   const existing = readFileSync(claudeMdPath, 'utf8');
 
-  const hasNew = existing.includes(MARKER_START);
-  const hasLegacy = existing.includes(LEGACY_MARKER_START);
-
-  if (hasNew || hasLegacy) {
-    const start = hasNew ? MARKER_START : LEGACY_MARKER_START;
-    const end = hasNew ? MARKER_END : LEGACY_MARKER_END;
+  if (existing.includes(MARKER_START)) {
     const updated = existing.replace(
-      new RegExp(`${escapeRegex(start)}[\\s\\S]*?${escapeRegex(end)}`),
+      new RegExp(`${escapeRegex(MARKER_START)}[\\s\\S]*?${escapeRegex(MARKER_END)}`),
       block
     );
     writeFileSync(claudeMdPath, updated);

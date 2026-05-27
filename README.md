@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🧠 promptpilot-ai
+# promptpilot-ai
 
-### The AI context layer for your codebase
+### AI context layer for your codebase
 
 **Works with Claude Code · Cursor · Both**
 
@@ -10,49 +10,40 @@
 [![license](https://img.shields.io/npm/l/promptpilot-ai?style=flat-square)](./LICENSE)
 [![node](https://img.shields.io/node/v/promptpilot-ai?style=flat-square)](https://nodejs.org)
 
+</div>
+
+![promptpilot-ai hero](./assets/hero.png)
+
+<div align="center">
+
 > Scan your project once → AI understands everything → no more blind file hunting
 
 </div>
 
 ---
 
-## 🤔 The Problem
+## The Pitch
 
-Every time you ask Claude or Cursor to build something, it starts from zero:
+Every AI coding task starts the same way: Claude or Cursor reads 8–12 files to "understand" your project before writing useful code. That's **~25,000 tokens spent on context-hunting**, every single task.
 
-```
-AI: Let me look at your project structure...
-AI: Reading package.json...
-AI: Reading src/app/...
-AI: Reading components/...
-AI: Hmm, where is the auth module?
-```
+`promptpilot-ai` scans your codebase **once** and writes structured markdown context files that Claude Code and Cursor read automatically.
 
-That's **8–12 file reads** (~25,000 tokens) just to understand context — before writing a single line of code.
-
----
-
-## ✅ The Solution
-
-Run `promptpilot-ai init` once. It scans your codebase and writes structured context files that AI tools read automatically.
-
-```
-AI: (reads .claude/context/architecture.md → knows everything)
-AI: Got it. Here's the implementation plan...
-```
-
-**2–3 reads. ~6,000 tokens. Straight to the code.**
+| | Without promptpilot-ai | With promptpilot-ai |
+|---|---|---|
+| File reads per task | 8–12 | 2–3 |
+| Tokens per task | ~25,000 | ~6,000 |
+| Savings | — | **70% fewer tokens** |
+| Multi-repo cross-lookup | Manual, many reads | Auto via `bridge.md` |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
-# In your project directory
 npx promptpilot-ai@latest init
 ```
 
-You'll be asked which AI tool you're using:
+Pick your AI tool and you're done:
 
 ```
 ? Which AI tool are you using?
@@ -61,13 +52,32 @@ You'll be asked which AI tool you're using:
     Both
 ```
 
-That's it. Open your project in Claude or Cursor — context is loaded automatically.
+Open your project in Claude Code or Cursor — context loads automatically.
+
+![promptpilot-ai terminal demo](./assets/terminal-demo.png)
 
 ---
 
-## 🗂️ What Gets Generated
+## How It Works
 
-### For Claude Code
+```mermaid
+flowchart LR
+    A[Your Codebase] -->|scan once| B[promptpilot-ai]
+    B -->|generates| C[.claude/context/<br/>.cursor/rules/]
+    C -->|auto-loaded by| D[Claude Code / Cursor]
+    D -->|~6K tokens per task| E[Faster, cheaper AI]
+```
+
+1. **Scan** — walks your project, detects stack, modules, naming patterns
+2. **Generate** — writes structured markdown context files (architecture, stack, patterns, per-module)
+3. **AI reads** — Claude Code / Cursor auto-load context before any task
+
+---
+
+## What Gets Generated
+
+<details>
+<summary><strong>For Claude Code</strong></summary>
 
 ```
 your-project/
@@ -89,7 +99,10 @@ your-project/
 └── .git/hooks/post-commit           ← auto-sync on commit
 ```
 
-### For Cursor
+</details>
+
+<details>
+<summary><strong>For Cursor</strong></summary>
 
 ```
 your-project/
@@ -104,11 +117,13 @@ your-project/
             └── ...
 ```
 
-> 💡 Cursor's `.mdc` rules use `alwaysApply: true` for global context and file-glob matching for module-level context — so you only pay for what's relevant.
+Cursor's `.mdc` rules use `alwaysApply: true` for global context and file-glob matching for module-level context — so you only pay for what's relevant.
+
+</details>
 
 ---
 
-## 🏗️ Multi-Repo Workspace (Frontend + Backend)
+## Multi-Repo Workspace (Frontend + Backend)
 
 ```
 your-workspace/        ← run init here
@@ -136,18 +151,7 @@ Now when you say `/ask add a user profile page`, AI reads `bridge.md`, finds the
 
 ---
 
-## 📊 Token Savings
-
-| | Without promptpilot-ai | With promptpilot-ai |
-|---|---|---|
-| **File reads per task** | 8–12 | 2–3 |
-| **Tokens per task** | ~25,000 | ~6,000 |
-| **Savings** | — | **~70% fewer tokens** |
-| **Multi-repo cross-lookup** | Manual, many reads | Auto via bridge.md |
-
----
-
-## ⚡ Commands
+## Commands
 
 ### CLI
 
@@ -165,9 +169,11 @@ Now when you say `/ask add a user profile page`, AI reads `bridge.md`, finds the
 | `/plan <request>` | **Interactive planning** — detects UI vs backend, shows 2–3 layout approaches as ASCII mockups for you to pick, then delivers the final plan with reusable-component reuse enforced |
 | `/sync` | Trigger a context sync from inside Claude Code |
 
+> All slash commands respond in the same language you write your request in (English, Hindi, Hinglish, Spanish, etc.). Code, paths, and identifiers stay in English.
+
 ---
 
-## 🛠️ Supported Stacks
+## Supported Stacks
 
 | Category | Supported |
 |---|---|
@@ -181,37 +187,20 @@ Now when you say `/ask add a user profile page`, AI reads `bridge.md`, finds the
 
 ---
 
-## 🔄 Keeping Context Fresh
+## Keeping Context Fresh
 
 | Trigger | What happens |
 |---|---|
 | `git commit` | Post-commit hook auto-updates changed modules |
 | New module or endpoint | Run `npx promptpilot-ai sync` manually |
 | Major refactor | Run `npx promptpilot-ai sync` manually |
+| promptpilot-ai upgrade | Run `npx promptpilot-ai sync --templates` to refresh slash commands |
+
+promptpilot-ai checks npm for new versions once a day (throttled, opt-out via `NO_UPDATE_NOTIFIER=1` or `CI=1`) and surfaces updates in your terminal, inside Claude Code via `SessionStart`, and in Cursor via an auto-generated `.cursor/rules/_promptpilot-update.mdc`.
 
 ---
 
-## 🔔 Staying Updated
-
-promptpilot-ai checks npm once a day (throttled, opt-out via `NO_UPDATE_NOTIFIER=1` or `CI=1`) and surfaces new versions in three places:
-
-| Where | How you see it |
-|---|---|
-| **Terminal** | Rounded banner on stderr after any `promptpilot-ai` command (only in interactive terminals, not pipes/CI) |
-| **Claude Code** | The existing `SessionStart` hook prints a one-line notice into Claude's context — Claude mentions it at the start of your first response |
-| **Cursor** | A temporary `.cursor/rules/_promptpilot-update.mdc` is auto-generated with `alwaysApply: true` so Cursor surfaces it the next time you chat |
-
-After upgrading the package (`npm i -g promptpilot-ai`), run:
-
-```bash
-npx promptpilot-ai sync --templates
-```
-
-This refreshes the slash command templates in your project, clears the notice file, and resets the cache. Zero runtime dependencies — version check uses native `fetch` only.
-
----
-
-## ❓ FAQ
+## FAQ
 
 **Do I need an API key?**
 No. Uses your existing Claude Code plan or Cursor subscription — no extra API keys.
@@ -227,7 +216,6 @@ Yes, commit them. Teammates get context immediately without running init themsel
 
 ---
 
-## 📄 License
+## License
 
 MIT
-

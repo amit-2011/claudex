@@ -370,31 +370,58 @@ function copyCommandTemplates(cwd, { force = false } = {}) {
 
 async function collectNewProjectConfig() {
   const framework = await select('Framework', [
-    { label: 'Next.js', value: 'nextjs', type: 'fullstack' },
-    { label: 'React SPA (Vite)', value: 'react', type: 'spa' },
-    { label: 'NestJS', value: 'nestjs', type: 'api' },
-    { label: 'Express', value: 'express', type: 'api' },
-    { label: 'Node.js CLI / Library', value: 'node', type: 'library' },
+    { label: 'Next.js', value: 'nextjs', type: 'fullstack', lang: 'node' },
+    { label: 'React SPA (Vite)', value: 'react', type: 'spa', lang: 'node' },
+    { label: 'NestJS', value: 'nestjs', type: 'api', lang: 'node' },
+    { label: 'Express', value: 'express', type: 'api', lang: 'node' },
+    { label: 'Node.js CLI / Library', value: 'node', type: 'library', lang: 'node' },
+    { label: 'Laravel (PHP)', value: 'laravel', type: 'fullstack', lang: 'php' },
+    { label: 'Django (Python)', value: 'django', type: 'fullstack', lang: 'python' },
+    { label: 'FastAPI (Python)', value: 'fastapi', type: 'api', lang: 'python' },
+    { label: 'Flask (Python)', value: 'flask', type: 'api', lang: 'python' },
   ]);
   console.log('');
 
-  const language = await select('Language', [
-    { label: 'TypeScript', value: 'typescript' },
-    { label: 'JavaScript', value: 'javascript' },
-  ]);
-  console.log('');
+  const langKind = framework.lang;
 
-  const packageManager = await select('Package manager', [
-    { label: 'pnpm', value: 'pnpm' },
-    { label: 'npm', value: 'npm' },
-    { label: 'yarn', value: 'yarn' },
-  ]);
-  console.log('');
+  let language;
+  if (langKind === 'node') {
+    language = await select('Language', [
+      { label: 'TypeScript', value: 'typescript' },
+      { label: 'JavaScript', value: 'javascript' },
+    ]);
+    console.log('');
+  } else if (langKind === 'php') {
+    language = { label: 'PHP', value: 'php' };
+  } else {
+    language = { label: 'Python', value: 'python' };
+  }
+
+  let packageManager;
+  if (langKind === 'node') {
+    packageManager = await select('Package manager', [
+      { label: 'pnpm', value: 'pnpm' },
+      { label: 'npm', value: 'npm' },
+      { label: 'yarn', value: 'yarn' },
+    ]);
+    console.log('');
+  } else if (langKind === 'php') {
+    packageManager = { label: 'Composer', value: 'composer' };
+  } else {
+    packageManager = await select('Package manager', [
+      { label: 'pip', value: 'pip' },
+      { label: 'Poetry', value: 'poetry' },
+      { label: 'Pipenv', value: 'pipenv' },
+      { label: 'uv', value: 'uv' },
+    ]);
+    console.log('');
+  }
 
   let database = { label: 'None', value: 'none' };
   let orm = { label: 'None', value: 'none' };
 
-  if (['nextjs', 'nestjs', 'express'].includes(framework.value)) {
+  const backendish = ['nextjs', 'nestjs', 'express', 'laravel', 'django', 'fastapi', 'flask'].includes(framework.value);
+  if (backendish) {
     database = await select('Database', [
       { label: 'None', value: 'none' },
       { label: 'PostgreSQL', value: 'postgresql' },
@@ -405,24 +432,64 @@ async function collectNewProjectConfig() {
     console.log('');
 
     if (database.value !== 'none') {
-      orm = await select('ORM / Query Builder', [
-        { label: 'Prisma', value: 'prisma' },
-        { label: 'Drizzle', value: 'drizzle' },
-        { label: 'TypeORM', value: 'typeorm' },
-        { label: 'Raw SQL', value: 'none' },
-      ]);
-      console.log('');
+      // Laravel and Django ship a built-in ORM — no prompt needed.
+      if (framework.value === 'laravel') {
+        orm = { label: 'Eloquent', value: 'eloquent' };
+      } else if (framework.value === 'django') {
+        orm = { label: 'Django ORM', value: 'django-orm' };
+      } else {
+        orm = await select('ORM / Query Builder', ormChoices(langKind));
+        console.log('');
+      }
     }
   }
 
-  const testing = await select('Testing', [
-    { label: 'Vitest', value: 'vitest' },
-    { label: 'Jest', value: 'jest' },
-    { label: 'None', value: 'none' },
-  ]);
+  let testing;
+  if (langKind === 'php') {
+    testing = await select('Testing', [
+      { label: 'Pest', value: 'pest' },
+      { label: 'PHPUnit', value: 'phpunit' },
+      { label: 'None', value: 'none' },
+    ]);
+  } else if (langKind === 'python') {
+    testing = await select('Testing', [
+      { label: 'pytest', value: 'pytest' },
+      { label: 'unittest', value: 'unittest' },
+      { label: 'None', value: 'none' },
+    ]);
+  } else {
+    testing = await select('Testing', [
+      { label: 'Vitest', value: 'vitest' },
+      { label: 'Jest', value: 'jest' },
+      { label: 'None', value: 'none' },
+    ]);
+  }
   console.log('');
 
   return { framework, language, packageManager, database, orm, testing };
+}
+
+function ormChoices(langKind) {
+  if (langKind === 'python') {
+    return [
+      { label: 'SQLAlchemy', value: 'sqlalchemy' },
+      { label: 'SQLModel', value: 'sqlmodel' },
+      { label: 'Tortoise ORM', value: 'tortoise' },
+      { label: 'Raw SQL', value: 'none' },
+    ];
+  }
+  if (langKind === 'php') {
+    return [
+      { label: 'Doctrine', value: 'doctrine' },
+      { label: 'Raw SQL', value: 'none' },
+    ];
+  }
+  return [
+    { label: 'Prisma', value: 'prisma' },
+    { label: 'Drizzle', value: 'drizzle' },
+    { label: 'TypeORM', value: 'typeorm' },
+    { label: 'Raw SQL', value: 'none' },
+  ];
 }
 
 function buildScanDataFromConfig(config) {
@@ -434,32 +501,31 @@ function buildScanDataFromConfig(config) {
     nestjs: { name: 'NestJS', type: 'api' },
     express: { name: 'Express', type: 'api' },
     node: { name: 'Node.js', type: 'library' },
+    laravel: { name: 'Laravel', type: 'fullstack' },
+    django: { name: 'Django', type: 'fullstack' },
+    fastapi: { name: 'FastAPI', type: 'api' },
+    flask: { name: 'Flask', type: 'api' },
   };
 
+  const languageLabel = { typescript: 'TypeScript', javascript: 'JavaScript', php: 'PHP', python: 'Python' }[language.value];
+  const runtime = language.value === 'php' ? 'PHP' : language.value === 'python' ? 'Python' : 'Node.js';
+
   const stack = {
-    language: language.value === 'typescript' ? 'TypeScript' : 'JavaScript',
-    runtime: 'Node.js',
+    language: languageLabel,
+    runtime,
     framework: frameworkNames[framework.value],
     packageManager: packageManager.value,
     database: database.value !== 'none' ? database.label : null,
     orm: orm.value !== 'none' ? orm.label : null,
     testFramework: testing.value !== 'none' ? testing.label : null,
     uiLibrary: null,
-    buildTool: framework.value === 'react' ? 'Vite' : null,
+    buildTool: framework.value === 'react' || framework.value === 'laravel' ? 'Vite' : null,
     keyDeps: {},
+    commands: buildConfigCommands(framework.value, packageManager.value),
   };
 
   const modules = buildDefaultModules(framework.value, language.value);
-
-  const patterns = {
-    fileNaming: 'kebab-case',
-    componentNaming: 'PascalCase',
-    importStyle: 'ESM',
-    hasPathAliases: language.value === 'typescript',
-    patterns: getDefaultPatterns(framework.value),
-    stateManagement: null,
-    cssApproach: 'Tailwind CSS',
-  };
+  const patterns = buildConfigPatterns(framework.value, language.value);
 
   const fileData = {
     files: [],
@@ -471,6 +537,54 @@ function buildScanDataFromConfig(config) {
   };
 
   return { fileData, stack, modules, patterns };
+}
+
+function buildConfigCommands(fw, pm) {
+  if (fw === 'laravel') {
+    return { install: 'composer install', dev: 'php artisan serve', build: 'npm run build', migrate: 'php artisan migrate', test: 'php artisan test', lint: './vendor/bin/pint' };
+  }
+  if (fw === 'django' || fw === 'fastapi' || fw === 'flask') {
+    const run = pm === 'poetry' ? 'poetry run ' : pm === 'pipenv' ? 'pipenv run ' : '';
+    const install = pm === 'poetry' ? 'poetry install' : pm === 'pipenv' ? 'pipenv install' : pm === 'uv' ? 'uv pip install -r requirements.txt' : 'pip install -r requirements.txt';
+    if (fw === 'django') return { install, dev: `${run}python manage.py runserver`, migrate: `${run}python manage.py migrate`, test: `${run}pytest`, lint: `${run}ruff check .` };
+    if (fw === 'fastapi') return { install, dev: `${run}uvicorn main:app --reload`, test: `${run}pytest`, lint: `${run}ruff check .` };
+    return { install, dev: `${run}flask run --debug`, test: `${run}pytest`, lint: `${run}ruff check .` };
+  }
+  return { install: `${pm} install`, dev: `${pm} run dev`, build: `${pm} run build`, test: `${pm} run test`, lint: `${pm} run lint` };
+}
+
+function buildConfigPatterns(fw, langValue) {
+  if (langValue === 'php') {
+    return {
+      fileNaming: 'PascalCase (classes), kebab-case (Blade views)',
+      componentNaming: 'PascalCase (PSR-4 classes)',
+      importStyle: 'PSR-4 namespaces (use statements)',
+      hasPathAliases: true,
+      patterns: getDefaultPatterns(fw),
+      stateManagement: null,
+      cssApproach: 'Tailwind CSS',
+    };
+  }
+  if (langValue === 'python') {
+    return {
+      fileNaming: 'snake_case',
+      componentNaming: 'PascalCase (classes), snake_case (functions)',
+      importStyle: 'PEP 8 imports (stdlib → third-party → local)',
+      hasPathAliases: false,
+      patterns: getDefaultPatterns(fw),
+      stateManagement: null,
+      cssApproach: null,
+    };
+  }
+  return {
+    fileNaming: 'kebab-case',
+    componentNaming: 'PascalCase',
+    importStyle: 'ESM',
+    hasPathAliases: langValue === 'typescript',
+    patterns: getDefaultPatterns(fw),
+    stateManagement: null,
+    cssApproach: 'Tailwind CSS',
+  };
 }
 
 function buildDefaultModules(frameworkValue, language) {
@@ -503,6 +617,27 @@ function buildDefaultModules(frameworkValue, language) {
       { name: 'lib', path: 'src/lib', files: [], type: 'feature', deps: [], testFiles: [] },
       { name: 'utils', path: 'src/utils', files: [], type: 'infra', deps: [], testFiles: [] },
     ],
+    laravel: [
+      { name: 'controllers', path: 'app/Http/Controllers', files: [], type: 'api', deps: [], testFiles: [] },
+      { name: 'models', path: 'app/Models', files: [], type: 'database', deps: [], testFiles: [] },
+      { name: 'routes', path: 'routes', files: [], type: 'api', deps: [], testFiles: [] },
+      { name: 'views', path: 'resources/views', files: [], type: 'ui', deps: [], testFiles: [] },
+      { name: 'migrations', path: 'database/migrations', files: [], type: 'database', deps: [], testFiles: [] },
+    ],
+    django: [
+      { name: 'core', path: 'core', files: [], type: 'config', deps: [], testFiles: [] },
+      { name: 'api', path: 'api', files: [], type: 'api', deps: [], testFiles: [] },
+      { name: 'users', path: 'users', files: [], type: 'feature', deps: [], testFiles: [] },
+    ],
+    fastapi: [
+      { name: 'routers', path: 'app/routers', files: [], type: 'api', deps: [], testFiles: [] },
+      { name: 'models', path: 'app/models', files: [], type: 'database', deps: [], testFiles: [] },
+      { name: 'schemas', path: 'app/schemas', files: [], type: 'feature', deps: [], testFiles: [] },
+    ],
+    flask: [
+      { name: 'routes', path: 'app/routes', files: [], type: 'api', deps: [], testFiles: [] },
+      { name: 'models', path: 'app/models', files: [], type: 'database', deps: [], testFiles: [] },
+    ],
   };
 
   return moduleMap[frameworkValue] || moduleMap.node;
@@ -515,6 +650,10 @@ function getDefaultPatterns(frameworkValue) {
     nestjs: ['Controller pattern', 'Service layer', 'Module pattern', 'DTO pattern'],
     express: ['Middleware pattern', 'Router pattern'],
     node: [],
+    laravel: ['Controller pattern', 'Eloquent models', 'Form Request validation', 'Blade templates', 'Route files (web.php / api.php)'],
+    django: ['Django models (ORM)', 'Django views', 'URL routing (urls.py)', 'Django admin'],
+    fastapi: ['APIRouter modules', 'Pydantic schemas', 'Dependency injection'],
+    flask: ['Flask blueprints', 'SQLAlchemy models'],
   };
   return patterns[frameworkValue] || [];
 }
@@ -522,7 +661,7 @@ function getDefaultPatterns(frameworkValue) {
 function detectNewProject(cwd) {
   try {
     const files = execSync('git ls-files', { cwd, encoding: 'utf8', stdio: 'pipe' }).trim().split('\n').filter(Boolean);
-    const sourceFiles = files.filter((f) => /\.(ts|tsx|js|jsx|py|go|rs)$/.test(f));
+    const sourceFiles = files.filter((f) => /\.(ts|tsx|js|jsx|py|php|go|rs)$/.test(f));
     return sourceFiles.length < 3;
   } catch {
     return false; // No git — let scanProject determine structure via filesystem walk

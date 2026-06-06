@@ -9,7 +9,7 @@ export async function scanProject(cwd) {
 
   const stack = detectStack(cwd, fileData.configFiles);
   const modules = analyzeModules(fileData.files, fileData.tree, stack.framework);
-  const patterns = detectPatterns(fileData.files, cwd);
+  const patterns = detectPatterns(fileData.files, cwd, stack);
 
   return { fileData, stack, modules, patterns };
 }

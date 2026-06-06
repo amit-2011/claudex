@@ -2,16 +2,28 @@ import { execSync } from 'child_process';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join, dirname, extname } from 'path';
 
-const ENTRY_NAMES = ['index', 'main', 'app', 'server', 'cli'];
+const ENTRY_NAMES = ['index', 'main', 'app', 'server', 'cli', 'manage', 'wsgi', 'asgi', 'artisan'];
 const CONFIG_NAMES = [
+  // Node.js
   'package.json', 'tsconfig.json', 'tsconfig.base.json',
   'vite.config.ts', 'vite.config.js', 'next.config.ts', 'next.config.js',
   'nest-cli.json', '.env.example', 'drizzle.config.ts', 'prisma/schema.prisma',
   'tailwind.config.ts', 'tailwind.config.js', 'eslint.config.js', '.eslintrc.json',
   'jest.config.ts', 'vitest.config.ts', 'docker-compose.yml', 'Dockerfile',
+  // PHP / Laravel
+  'composer.json', 'artisan', 'phpunit.xml', 'phpunit.xml.dist', 'pint.json', 'webpack.mix.js',
+  // Python
+  'requirements.txt', 'pyproject.toml', 'Pipfile', 'setup.py', 'setup.cfg',
+  'manage.py', 'pytest.ini', 'tox.ini', 'environment.yml',
 ];
 
-const WALK_SKIP = new Set(['node_modules', '.git', 'dist', '.next', 'build', 'coverage', '.turbo', 'out', '.cache']);
+const WALK_SKIP = new Set([
+  'node_modules', '.git', 'dist', '.next', 'build', 'coverage', '.turbo', 'out', '.cache',
+  // PHP
+  'vendor', 'storage',
+  // Python
+  '__pycache__', '.venv', 'venv', 'env', '.pytest_cache', '.mypy_cache', '.ruff_cache', '.tox', '.eggs',
+]);
 
 function walkDir(dir, base, results = []) {
   let entries;

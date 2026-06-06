@@ -3,7 +3,11 @@ import { join } from 'path';
 import { detectStack } from './stack-detector.js';
 
 const FRONTEND_FRAMEWORKS = new Set(['Next.js', 'React', 'Vue', 'Angular', 'Svelte', 'Astro', 'Remix', 'Nuxt']);
-const BACKEND_FRAMEWORKS = new Set(['NestJS', 'Express', 'Fastify', 'Hono', 'Koa']);
+const BACKEND_FRAMEWORKS = new Set([
+  'NestJS', 'Express', 'Fastify', 'Hono', 'Koa',
+  'Laravel', 'Lumen', 'Symfony', 'CakePHP', 'CodeIgniter', 'Slim',
+  'Django', 'Django REST Framework', 'Flask', 'FastAPI', 'Starlette',
+]);
 
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'dist', '.next', 'build', 'coverage', '.turbo', 'out', '.cache']);
 
@@ -17,8 +21,14 @@ function classifyRole(stack) {
   return 'unknown';
 }
 
+const REPO_MARKERS = [
+  'package.json', '.git',
+  'composer.json', 'artisan',
+  'requirements.txt', 'pyproject.toml', 'Pipfile', 'setup.py', 'manage.py',
+];
+
 function looksLikeRepo(dirPath) {
-  return existsSync(join(dirPath, 'package.json')) || existsSync(join(dirPath, '.git'));
+  return REPO_MARKERS.some((m) => existsSync(join(dirPath, m)));
 }
 
 export function detectSubRepos(cwd) {

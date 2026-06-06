@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { describeDir, commandsBlock } from './context.js';
 
 export function generateCursorRules(cwd, { fileData, stack, modules, patterns }) {
   if (patterns?.stateManagement) stack = { ...stack, stateManagement: patterns.stateManagement };
@@ -45,32 +46,14 @@ function buildArchitectureMdc(fileData, stack, modules) {
     framework?.type === 'fullstack' ? 'Full-Stack Web App'
     : framework?.type === 'api' ? 'Backend API'
     : framework?.type === 'spa' ? 'Single-Page Application'
-    : 'Node.js Project';
+    : `${stack.language || 'Unknown'} Project`;
 
-  const IGNORE = ['node_modules', '.git', 'dist', 'build', '.next', '.turbo', 'coverage'];
+  const IGNORE = ['node_modules', '.git', 'dist', 'build', '.next', '.turbo', 'coverage', 'vendor', 'storage', '__pycache__', '.venv', 'venv'];
   const topDirs = Object.keys(fileData.tree || {}).filter(
     (k) => typeof fileData.tree[k] === 'object' && fileData.tree[k] !== null && !IGNORE.includes(k)
   );
 
-  const dirDescriptions = topDirs.map((d) => {
-    const desc = {
-      src: 'Application source code',
-      app: framework?.name === 'Next.js' ? 'Next.js App Router routes and layouts' : 'Application source code',
-      pages: 'Next.js Pages Router',
-      components: 'Reusable UI components',
-      lib: 'Shared utilities and helpers',
-      utils: 'Utility functions',
-      server: 'Server-side code',
-      api: 'API routes or controllers',
-      public: 'Static assets',
-      prisma: 'Database schema and migrations',
-      tests: 'Test files',
-      scripts: 'Build and utility scripts',
-      docs: 'Documentation',
-      config: 'Configuration files',
-    }[d] || 'Project files';
-    return `- \`${d}/\` — ${desc}`;
-  });
+  const dirDescriptions = topDirs.map((d) => `- \`${d}/\` — ${describeDir(d, framework)}`);
 
   const moduleList = modules.map(
     (m) => `- **${m.name}** (${m.files.length} files) — ${describeModuleType(m.type)}`
@@ -114,7 +97,7 @@ function buildStackMdc(stack, patterns) {
   const content = `# Tech Stack
 
 ## Runtime
-Node.js
+${stack.runtime || 'Node.js'}
 
 ## Language
 ${stack.language}
@@ -126,7 +109,7 @@ ${stack.framework ? `${stack.framework.name}` : 'None'}
 ${stack.packageManager}
 
 ## Build Tool
-${stack.buildTool || 'Default (tsc / node)'}
+${stack.buildTool || 'Default'}
 
 ## Database
 ${stack.database || 'None'}
@@ -148,11 +131,7 @@ ${depList || 'None detected'}
 
 ## Common Commands
 \`\`\`
-${stack.packageManager} install       # Install dependencies
-${stack.packageManager} run dev       # Start development server
-${stack.packageManager} run build     # Production build
-${stack.packageManager} run test      # Run tests
-${stack.packageManager} run lint      # Lint code
+${commandsBlock(stack)}
 \`\`\`
 `;
 
@@ -170,29 +149,29 @@ function buildPatternsMdc(patterns, stack) {
 ## File Naming
 ${patterns.fileNaming}
 
-## Component Naming
+## Class / Component Naming
 ${patterns.componentNaming}
 
-## Import Style
+## Import / Module Style
 ${patterns.importStyle}
 
-## Path Aliases
-${patterns.hasPathAliases ? 'Yes — use `@/` prefix for imports (check tsconfig.json for exact mapping)' : 'No — use relative imports'}
+## Path Aliases / Autoload
+${patterns.hasPathAliases ? 'Yes — follow the project autoload/alias mapping (tsconfig paths / composer PSR-4)' : 'No — use standard relative / namespaced imports'}
 
 ## CSS Approach
-${patterns.cssApproach}
+${patterns.cssApproach || 'N/A'}
 
 ## Architectural Patterns
 ${archPatterns}
 
 ## Rules for New Code
 - Match the existing file naming convention: **${patterns.fileNaming}**
-- Components must use **${patterns.componentNaming}** naming
-- Use **${patterns.importStyle}** imports — do not mix styles
-${patterns.hasPathAliases ? '- Use path aliases (`@/`) instead of deep relative imports' : '- Use relative imports'}
+- Classes / components must use **${patterns.componentNaming}** naming
+- Follow the project's import style: **${patterns.importStyle}**
+${patterns.hasPathAliases ? '- Use configured path aliases / PSR-4 namespaces instead of deep relative imports' : ''}
 ${stack.uiLibrary === 'Tailwind CSS' ? '- Use Tailwind CSS classes — do not write custom CSS unless necessary' : ''}
-- Before creating a new component or utility, search for an existing one that can be reused
-`;
+- Before creating a new class, component, or utility, search for an existing one that can be reused
+`.replace(/\n\n+/g, '\n\n');
 
   return mdc('Code conventions, naming rules, and patterns — always follow these', true, '', content);
 }

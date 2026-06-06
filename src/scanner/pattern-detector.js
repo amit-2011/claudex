@@ -1,7 +1,16 @@
 import { readFileSync, existsSync } from 'fs';
 import { join, basename, extname } from 'path';
 
-export function detectPatterns(files, cwd) {
+export function detectPatterns(files, cwd, stack = {}) {
+  const language = stack.language;
+
+  if (language === 'Python') return detectPythonPatterns(files, cwd, stack);
+  if (language === 'PHP') return detectPhpPatterns(files, cwd, stack);
+  return detectJsPatterns(files, cwd);
+}
+
+// ──────────────────────────── JavaScript / TypeScript ────────────────────────────
+function detectJsPatterns(files, cwd) {
   const sourceFiles = files.filter((f) => /\.(ts|tsx|js|jsx)$/.test(f) && !f.includes('node_modules'));
 
   return {
@@ -15,6 +24,107 @@ export function detectPatterns(files, cwd) {
   };
 }
 
+// ──────────────────────────── Python ────────────────────────────
+function detectPythonPatterns(files, cwd, stack) {
+  const sourceFiles = files.filter((f) => f.endsWith('.py'));
+  const names = sourceFiles.map((f) => basename(f, '.py'));
+  const snake = names.filter((n) => /^[a-z][a-z0-9_]*$/.test(n)).length;
+  const fileNaming = snake >= names.length * 0.5 ? 'snake_case' : 'mixed';
+
+  return {
+    fileNaming,
+    componentNaming: 'PascalCase (classes), snake_case (functions)',
+    importStyle: 'PEP 8 imports (stdlib → third-party → local)',
+    hasPathAliases: false,
+    patterns: detectPythonArchPatterns(sourceFiles, stack),
+    stateManagement: null,
+    cssApproach: null,
+  };
+}
+
+function detectPythonArchPatterns(files, stack) {
+  const patterns = [];
+  const names = files.map((f) => basename(f)).join(' ');
+  const fw = stack.framework?.name || '';
+
+  if (fw.startsWith('Django')) {
+    if (/\bmodels\.py/.test(names)) patterns.push('Django models (ORM)');
+    if (/\bviews\.py/.test(names)) patterns.push('Django views');
+    if (/\bserializers\.py/.test(names)) patterns.push('DRF serializers');
+    if (/\burls\.py/.test(names)) patterns.push('URL routing (urls.py)');
+    if (/\badmin\.py/.test(names)) patterns.push('Django admin');
+    if (/\bforms\.py/.test(names)) patterns.push('Django forms');
+    if (/\btasks\.py/.test(names)) patterns.push('Celery tasks');
+  } else if (fw === 'FastAPI' || fw === 'Starlette') {
+    if (/\brouters?\b|routes\.py/.test(names)) patterns.push('APIRouter modules');
+    if (/\bschemas\.py|models\.py/.test(names)) patterns.push('Pydantic schemas');
+    if (/\bdependencies\.py|deps\.py/.test(names)) patterns.push('Dependency injection');
+    if (/\bcrud\.py/.test(names)) patterns.push('CRUD layer');
+  } else if (fw === 'Flask') {
+    if (/blueprint/i.test(names)) patterns.push('Flask blueprints');
+    if (/\bmodels\.py/.test(names)) patterns.push('SQLAlchemy models');
+  }
+  if (/\bservice[s]?\.py|services\b/.test(names)) patterns.push('Service layer');
+  if (/\brepositor/.test(names)) patterns.push('Repository pattern');
+  if (/conftest\.py|test_/.test(names)) patterns.push('pytest fixtures');
+
+  return patterns;
+}
+
+// ──────────────────────────── PHP / Laravel ────────────────────────────
+function detectPhpPatterns(files, cwd, stack) {
+  const sourceFiles = files.filter((f) => f.endsWith('.php'));
+
+  return {
+    fileNaming: 'PascalCase (classes), kebab-case (Blade views)',
+    componentNaming: 'PascalCase (PSR-4 classes)',
+    importStyle: 'PSR-4 namespaces (use statements)',
+    hasPathAliases: detectComposerPsr4(cwd),
+    patterns: detectPhpArchPatterns(sourceFiles, stack),
+    stateManagement: null,
+    cssApproach: detectLaravelCss(files, cwd),
+  };
+}
+
+function detectComposerPsr4(cwd) {
+  const p = join(cwd, 'composer.json');
+  if (!existsSync(p)) return false;
+  try {
+    const composer = JSON.parse(readFileSync(p, 'utf8'));
+    return !!composer.autoload?.['psr-4'];
+  } catch {
+    return false;
+  }
+}
+
+function detectPhpArchPatterns(files, stack) {
+  const patterns = [];
+  const names = files.map((f) => f).join(' ');
+
+  if (/Controller\.php/.test(names)) patterns.push('Controller pattern');
+  if (/app\/Models\/|\/Models\//.test(names)) patterns.push('Eloquent models');
+  if (/Request\.php/.test(names)) patterns.push('Form Request validation');
+  if (/Resource\.php/.test(names)) patterns.push('API Resources');
+  if (/Service\.php|\/Services\//.test(names)) patterns.push('Service layer');
+  if (/Repository\.php/.test(names)) patterns.push('Repository pattern');
+  if (/Middleware\.php|\/Middleware\//.test(names)) patterns.push('Middleware pattern');
+  if (/Job\.php|\/Jobs\//.test(names)) patterns.push('Queued jobs');
+  if (/Provider\.php|\/Providers\//.test(names)) patterns.push('Service providers');
+  if (/database\/migrations\//.test(names)) patterns.push('Schema migrations');
+  if (/\.blade\.php/.test(names)) patterns.push('Blade templates');
+  if (/routes\/(web|api)\.php/.test(names)) patterns.push('Route files (web.php / api.php)');
+
+  return patterns;
+}
+
+function detectLaravelCss(files, cwd) {
+  const hasTailwind = files.some((f) => f.includes('tailwind.config'));
+  if (hasTailwind) return 'Tailwind CSS';
+  if (files.some((f) => f.endsWith('.scss'))) return 'SCSS';
+  return null;
+}
+
+// ──────────────────────────── shared (JS) helpers ────────────────────────────
 function detectFileNaming(files) {
   const names = files.map((f) => basename(f, extname(f)));
   let kebab = 0, camel = 0, pascal = 0;

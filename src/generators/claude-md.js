@@ -54,7 +54,7 @@ ${moduleNames.map((m) => `- \`${m}\` → \`.claude/context/modules/${m.replace(/
 - **Never duplicate code** — search for existing implementations before creating new ones
 - **Follow detected patterns** — see \`.claude/context/patterns.md\`
 - **Use the correct package manager**: \`${stack.packageManager}\`
-${stack.language === 'TypeScript' ? '- **TypeScript strict mode** — no `any`, always use specific types\n' : ''}- **Read module context** before modifying files in that module
+${languageRule(stack.language)}- **Read module context** before modifying files in that module
 
 ## Context Sync
 
@@ -63,6 +63,13 @@ If you add a new module or significantly restructure the project, run:
 npx promptpilot-ai sync
 \`\`\`
 ${MARKER_END}`;
+}
+
+function languageRule(language) {
+  if (language === 'TypeScript') return '- **TypeScript strict mode** — no `any`, always use specific types\n';
+  if (language === 'PHP') return '- **Follow PSR-12** — declare `strict_types`, type-hint params/returns, PSR-4 namespaces\n';
+  if (language === 'Python') return '- **Follow PEP 8** — use type hints, snake_case for functions, PascalCase for classes\n';
+  return '';
 }
 
 function escapeRegex(s) {

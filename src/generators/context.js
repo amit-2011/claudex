@@ -38,32 +38,14 @@ function buildArchitecture(fileData, stack, modules) {
   const type = framework?.type === 'fullstack' ? 'Full-Stack Web App'
     : framework?.type === 'api' ? 'Backend API'
     : framework?.type === 'spa' ? 'Single-Page Application'
-    : 'Node.js Project';
+    : `${stack.language || 'Unknown'} Project`;
 
-  const IGNORE = ['node_modules', '.git', 'dist', 'build', '.next', '.turbo', 'coverage'];
+  const IGNORE = ['node_modules', '.git', 'dist', 'build', '.next', '.turbo', 'coverage', 'vendor', 'storage', '__pycache__', '.venv', 'venv'];
   const topDirs = Object.keys(fileData.tree).filter(
     (k) => typeof fileData.tree[k] === 'object' && fileData.tree[k] !== null && !IGNORE.includes(k)
   );
 
-  const dirDescriptions = topDirs.map((d) => {
-    const desc = {
-      src: 'Application source code',
-      app: framework?.name === 'Next.js' ? 'Next.js App Router routes and layouts' : 'Application source code',
-      pages: 'Next.js Pages Router',
-      components: 'Reusable UI components',
-      lib: 'Shared utilities and helpers',
-      utils: 'Utility functions',
-      server: 'Server-side code',
-      api: 'API routes or controllers',
-      public: 'Static assets',
-      prisma: 'Database schema and migrations',
-      tests: 'Test files',
-      scripts: 'Build and utility scripts',
-      docs: 'Documentation',
-      config: 'Configuration files',
-    }[d] || 'Project files';
-    return `- \`${d}/\` — ${desc}`;
-  });
+  const dirDescriptions = topDirs.map((d) => `- \`${d}/\` — ${describeDir(d, framework)}`);
 
   const moduleList = modules.map((m) => `- **${m.name}** (${m.files.length} files) — ${describeModuleType(m.type)}`);
 
@@ -103,7 +85,7 @@ function buildStack(stack, patterns) {
   return `# Tech Stack
 
 ## Runtime
-Node.js
+${stack.runtime || 'Node.js'}
 
 ## Language
 ${stack.language}
@@ -115,7 +97,7 @@ ${stack.framework ? `${stack.framework.name}` : 'None'}
 ${stack.packageManager}
 
 ## Build Tool
-${stack.buildTool || 'Default (tsc / node)'}
+${stack.buildTool || 'Default'}
 
 ## Database
 ${stack.database || 'None'}
@@ -137,13 +119,36 @@ ${depList || 'None detected'}
 
 ## Common Commands
 \`\`\`
-${stack.packageManager} install       # Install dependencies
-${stack.packageManager} run dev       # Start development server
-${stack.packageManager} run build     # Production build
-${stack.packageManager} run test      # Run tests
-${stack.packageManager} run lint      # Lint code
+${commandsBlock(stack)}
 \`\`\`
 `;
+}
+
+export function commandsBlock(stack) {
+  const c = stack.commands;
+  if (!c) {
+    const pm = stack.packageManager || 'npm';
+    return [
+      `${pm} install`.padEnd(34) + '# Install dependencies',
+      `${pm} run dev`.padEnd(34) + '# Start development server',
+      `${pm} run build`.padEnd(34) + '# Production build',
+      `${pm} run test`.padEnd(34) + '# Run tests',
+      `${pm} run lint`.padEnd(34) + '# Lint code',
+    ].join('\n');
+  }
+  const labels = {
+    install: 'Install dependencies',
+    dev: 'Start development server',
+    build: 'Production build',
+    migrate: 'Run database migrations',
+    test: 'Run tests',
+    lint: 'Lint code',
+  };
+  const order = ['install', 'dev', 'build', 'migrate', 'test', 'lint'];
+  return order
+    .filter((k) => c[k])
+    .map((k) => `${c[k]}`.padEnd(34) + `# ${labels[k]}`)
+    .join('\n');
 }
 
 function buildPatterns(patterns, stack) {
@@ -156,29 +161,29 @@ function buildPatterns(patterns, stack) {
 ## File Naming
 ${patterns.fileNaming}
 
-## Component Naming
+## Class / Component Naming
 ${patterns.componentNaming}
 
-## Import Style
+## Import / Module Style
 ${patterns.importStyle}
 
-## Path Aliases
-${patterns.hasPathAliases ? 'Yes — use `@/` prefix for imports (check tsconfig.json for exact mapping)' : 'No — use relative imports'}
+## Path Aliases / Autoload
+${patterns.hasPathAliases ? 'Yes — follow the project autoload/alias mapping (tsconfig paths / composer PSR-4)' : 'No — use standard relative / namespaced imports'}
 
 ## CSS Approach
-${patterns.cssApproach}
+${patterns.cssApproach || 'N/A'}
 
 ## Architectural Patterns
 ${archPatterns}
 
 ## Rules for New Code
 - Match the existing file naming convention: **${patterns.fileNaming}**
-- Components must use **${patterns.componentNaming}** naming
-- Use **${patterns.importStyle}** imports — do not mix styles
-${patterns.hasPathAliases ? '- Use path aliases (`@/`) instead of deep relative imports' : '- Use relative imports'}
+- Classes / components must use **${patterns.componentNaming}** naming
+- Follow the project's import style: **${patterns.importStyle}**
+${patterns.hasPathAliases ? '- Use configured path aliases / PSR-4 namespaces instead of deep relative imports' : ''}
 ${stack.uiLibrary === 'Tailwind CSS' ? '- Use Tailwind CSS classes — do not write custom CSS unless necessary' : ''}
-- Before creating a new component or utility, search for an existing one that can be reused
-`;
+- Before creating a new class, component, or utility, search for an existing one that can be reused
+`.replace(/\n\n+/g, '\n\n');
 }
 
 function buildModule(mod) {
@@ -218,6 +223,47 @@ function describeModuleType(type) {
     routes: 'Page routes',
   };
   return map[type] || type;
+}
+
+export function describeDir(d, framework) {
+  const fw = framework?.name || '';
+  const appDesc = fw === 'Next.js' ? 'Next.js App Router routes and layouts'
+    : fw === 'Laravel' || fw === 'Lumen' ? 'Laravel application core (Models, Http controllers, Providers)'
+    : fw === 'Flask' || fw === 'FastAPI' ? 'Application package (routers, models, schemas)'
+    : 'Application source code';
+
+  return {
+    // shared / Node
+    src: 'Application source code',
+    app: appDesc,
+    pages: 'Next.js Pages Router',
+    components: 'Reusable UI components',
+    lib: 'Shared utilities and helpers',
+    utils: 'Utility functions',
+    server: 'Server-side code',
+    api: 'API routes or controllers',
+    public: 'Static assets',
+    prisma: 'Database schema and migrations',
+    tests: 'Test files',
+    test: 'Test files',
+    scripts: 'Build and utility scripts',
+    docs: 'Documentation',
+    config: 'Configuration files',
+    // Laravel
+    routes: 'Route definitions (web.php, api.php)',
+    resources: 'Blade views, JS/CSS assets, language files',
+    database: 'Migrations, seeders, factories',
+    bootstrap: 'Framework bootstrap files',
+    // Django / Python
+    templates: 'HTML templates',
+    static: 'Static assets (CSS, JS, images)',
+    migrations: 'Database migrations',
+    apps: 'Django applications',
+    core: 'Core application logic',
+    services: 'Service layer',
+    schemas: 'Pydantic / data schemas',
+    models: 'Data models',
+  }[d] || 'Project files';
 }
 
 function capitalize(s) {

@@ -178,12 +178,16 @@ Now when you say `/ask add a user profile page`, AI reads `bridge.md`, finds the
 | Category | Supported |
 |---|---|
 | **Frontend** | Next.js (App + Pages Router), React (Vite), Vue, Svelte, Astro, Remix |
-| **Backend** | NestJS, Express, Fastify, Hono, Koa |
-| **Languages** | TypeScript, JavaScript |
+| **Backend (Node)** | NestJS, Express, Fastify, Hono, Koa |
+| **Backend (PHP)** | Laravel, Lumen, Symfony |
+| **Backend (Python)** | Django, Django REST Framework, FastAPI, Flask |
+| **Languages** | TypeScript, JavaScript, PHP, Python |
 | **Databases** | PostgreSQL, MySQL, MongoDB, SQLite |
-| **ORMs** | Prisma, Drizzle, TypeORM |
-| **Package Managers** | pnpm, npm, yarn |
-| **Testing** | Vitest, Jest |
+| **ORMs** | Prisma, Drizzle, TypeORM, Eloquent, Django ORM, SQLAlchemy, SQLModel, Tortoise |
+| **Package Managers** | pnpm, npm, yarn · Composer · pip, Poetry, Pipenv, uv |
+| **Testing** | Vitest, Jest · PHPUnit, Pest · pytest, unittest |
+
+> **Cross-language bridge:** a JS/TS frontend (Next.js/React) paired with a Laravel or Python backend is auto-detected in multi-repo workspaces — `bridge.md` maps frontend `fetch`/`axios` calls to Laravel `Route::` / FastAPI / Flask / Django endpoints.
 
 ---
 

@@ -8,21 +8,42 @@ export function writeClaudeSettings(cwd, stack) {
   mkdirSync(settingsDir, { recursive: true });
 
   const pm = stack?.packageManager || 'npm';
-  const pmPattern = `Bash(${pm}:*)`;
-  const extraPm = pm !== 'npm' ? ', "Bash(npm:*)"' : '';
+  const language = stack?.language;
 
   const syncCommand = 'npx promptpilot-ai update-context --since-last-sync 2>/dev/null || true';
 
+  const allow = new Set([
+    `Bash(${pm}:*)`,
+    'Bash(git:*)',
+    'Bash(node:*)',
+    'Read',
+    'Edit',
+    'Write',
+  ]);
+
+  // npx is always needed for the auto-sync hook
+  allow.add('Bash(npx:*)');
+
+  if (language === 'PHP') {
+    allow.add('Bash(php:*)');
+    allow.add('Bash(composer:*)');
+    allow.add('Bash(./vendor/bin/pint:*)');
+    allow.add('Bash(./vendor/bin/pest:*)');
+    allow.add('Bash(./vendor/bin/phpunit:*)');
+  } else if (language === 'Python') {
+    allow.add('Bash(python:*)');
+    allow.add('Bash(python3:*)');
+    allow.add('Bash(pip:*)');
+    allow.add('Bash(pytest:*)');
+    if (pm === 'poetry') allow.add('Bash(poetry:*)');
+    if (pm === 'pipenv') allow.add('Bash(pipenv:*)');
+    if (pm === 'uv') allow.add('Bash(uv:*)');
+    if (pm === 'pdm') allow.add('Bash(pdm:*)');
+  }
+
   const settings = {
     permissions: {
-      allow: [
-        `"${pmPattern}"${extraPm}`,
-        '"Bash(git:*)"',
-        '"Bash(node:*)"',
-        '"Read"',
-        '"Edit"',
-        '"Write"',
-      ].map((s) => s.replace(/"/g, '')),
+      allow: [...allow],
     },
     hooks: {
       Stop: [

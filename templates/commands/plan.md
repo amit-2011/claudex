@@ -24,7 +24,7 @@ Output exactly two short lines in this phase, nothing more:
 1. **Restatement:** one precise technical sentence describing what needs to be done.
 2. **Task type:** `UI` / `Backend` / `Both`.
 
-Detect as **UI** if the request mentions: page, screen, component, form, modal, button, layout, dashboard, table, sidebar, header, card, list view, navigation — or it affects files matching `*.tsx` / `*.jsx` / `*.vue` / `*.svelte` — or the involved module is a frontend module per `architecture.md`.
+Detect as **UI** if the request mentions: page, screen, component, form, modal, button, layout, dashboard, table, sidebar, header, card, list view, navigation — or it affects files matching `*.tsx` / `*.jsx` / `*.vue` / `*.svelte` / `*.blade.php` / templates (`*.html` in a Django/Flask `templates/` dir) — or the involved module is a frontend module (components, views, resources, templates) per `architecture.md`.
 
 If task type is **Backend** only → skip Phase 2 and go directly to Phase 3.
 

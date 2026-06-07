@@ -10,7 +10,10 @@ import { generateCursorRules } from '../generators/cursor-rules.js';
 import { generateBridgeFile } from '../generators/bridge.js';
 import { updateClaudeMd } from '../generators/claude-md.js';
 import { writeClaudeSettings } from '../generators/settings.js';
+import { generateAgentsMd, generateRootAgentsMd } from '../generators/agents-md.js';
 import { installStatusline, refreshStatuslineScript } from '../generators/statusline.js';
+import { generateSkills, skillsInstalled } from '../generators/skills.js';
+import { generateAgents, agentsInstalled } from '../generators/agents.js';
 import { writeStatsCache } from '../utils/stats-cache.js';
 import { installGitHook } from '../hooks/install.js';
 import { select, input } from '../utils/prompt.js';
@@ -67,8 +70,47 @@ export async function runInit(cwd) {
   if (target === 'claude' || target === 'both') {
     await maybeEnableStatusline(cwd);
   }
+  await maybeGenerateSkills(cwd, scanData, target);
+  if (target === 'claude' || target === 'both') {
+    await maybeGenerateAgents(cwd, scanData, target);
+  }
 
   printSuccess(cwd, scanData, isNew, target);
+}
+
+async function maybeGenerateAgents(cwd, scanData, target) {
+  console.log('');
+  const choice = await select('Generate a multi-agent pipeline (planner → builder → tester + /ship)?', [
+    { label: 'Yes', value: true },
+    { label: 'No', value: false },
+  ]);
+  if (!choice.value) return;
+
+  const names = generateAgents(cwd, scanData, target);
+  if (names.length) {
+    console.log(`\n  ${tick} Agents generated ${dim(`(${names.join(', ')})`)} ${dim('→ .claude/agents/ + /ship skill')}`);
+    console.log(`    ${dim('Use')} ${cyan('/ship')} ${dim('<feature>')} ${dim('to run plan → implement → test')}`);
+  }
+}
+
+async function maybeGenerateSkills(cwd, scanData, target) {
+  console.log('');
+  const choice = await select('Generate project-aware skills (design, devops, db)?', [
+    { label: 'Yes', value: true },
+    { label: 'No', value: false },
+  ]);
+  if (!choice.value) return;
+
+  const names = generateSkills(cwd, scanData, target);
+  if (!names.length) {
+    console.log(`\n  ${dim('No applicable skills for this stack')}`);
+    return;
+  }
+  const where =
+    target === 'cursor' ? '.cursor/rules/'
+    : target === 'both' ? '.claude/skills/ + .cursor/rules/'
+    : '.claude/skills/';
+  console.log(`\n  ${tick} Skills generated ${dim(`(${names.join(', ')})`)} ${dim('→ ' + where)}`);
 }
 
 async function maybeEnableStatusline(cwd) {
@@ -124,7 +166,7 @@ async function runMultiRepoInit(cwd, subRepos, target = 'claude') {
   for (const repo of scanResults) {
     if (target === 'claude' || target === 'both') {
       generateContextFiles(repo.path, repo.scanData);
-      updateClaudeMd(repo.path, repo.scanData.stack, repo.scanData.modules);
+      updateClaudeMd(repo.path, repo.scanData);
       writeClaudeSettings(repo.path, repo.scanData.stack);
       installGitHook(repo.path);
     }
@@ -134,8 +176,9 @@ async function runMultiRepoInit(cwd, subRepos, target = 'claude') {
         installGitHook(repo.path);
       }
     }
+    const repoAgents = generateAgentsMd(repo.path, repo.scanData, target);
     writeStatsCache(repo.path, repo.scanData, target);
-    console.log(`  ${tick} ${cyan(repo.name + '/')} context`);
+    console.log(`  ${tick} ${cyan(repo.name + '/')} context ${dim(`+ AGENTS.md (${repoAgents})`)}`);
   }
 
   // Write root-level context + bridge
@@ -152,6 +195,12 @@ async function runMultiRepoInit(cwd, subRepos, target = 'claude') {
       console.log(`  ${tick} ${cyan(bridgePath)} ${dim('(frontend ↔ backend API map)')}`);
     }
   }
+
+  const rootAgents = generateRootAgentsMd(
+    cwd,
+    scanResults.map((r) => ({ name: r.name, role: r.role, framework: r.scanData?.stack?.framework?.name }))
+  );
+  console.log(`  ${tick} ${cyan('AGENTS.md')} ${dim(`(workspace root — ${rootAgents})`)}`);
 
   console.log('');
   console.log(`  ${green('─'.repeat(40))}`);
@@ -192,6 +241,16 @@ export async function runSync(cwd, opts = {}) {
   }
 
   await writeOutputFiles(cwd, scanData, false, target);
+
+  if (skillsInstalled(cwd)) {
+    const names = generateSkills(cwd, scanData, target);
+    if (names.length) console.log(`  ${tick} Skills refreshed ${dim(`(${names.join(', ')})`)}`);
+  }
+
+  if (agentsInstalled(cwd)) {
+    const names = generateAgents(cwd, scanData, target);
+    if (names.length) console.log(`  ${tick} Agents refreshed ${dim(`(${names.join(', ')})`)}`);
+  }
 
   if (opts.templates) {
     refreshTemplates(cwd, target);
@@ -342,7 +401,7 @@ async function writeOutputFiles(cwd, scanData, isNew, target = 'claude') {
 
     copyCommandTemplates(cwd);
 
-    const mdStatus = updateClaudeMd(cwd, scanData.stack, scanData.modules);
+    const mdStatus = updateClaudeMd(cwd, scanData);
     console.log(`\n  ${tick} CLAUDE.md ${dim(mdStatus)}`);
 
     writeClaudeSettings(cwd, scanData.stack);
@@ -376,6 +435,9 @@ async function writeOutputFiles(cwd, scanData, isNew, target = 'claude') {
       }
     }
   }
+
+  const agentsMdStatus = generateAgentsMd(cwd, scanData, target);
+  console.log(`  ${tick} AGENTS.md ${dim(`${agentsMdStatus} — mandatory standards + Project rules (all AI tools)`)}`);
 
   writeStatsCache(cwd, scanData, target);
 }

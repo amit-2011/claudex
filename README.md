@@ -81,6 +81,7 @@ flowchart LR
 
 ```
 your-project/
+├── AGENTS.md                        ← cross-tool standard + MANDATORY rules + Project rules
 ├── CLAUDE.md                        ← context index (auto-loaded by Claude)
 ├── .claude/
 │   ├── settings.json                ← permissions + optional status bar
@@ -91,14 +92,23 @@ your-project/
 │   │   ├── sync.md                  ← /sync slash command
 │   │   ├── pp-stats.md              ← /pp-stats slash command
 │   │   └── pp-help.md               ← /pp-help slash command
-│   └── context/
-│       ├── architecture.md          ← project structure
-│       ├── stack.md                 ← tech stack & commands
-│       ├── patterns.md              ← naming & code conventions
-│       └── modules/
-│           ├── auth.md
-│           ├── components.md
-│           └── ...
+│   ├── context/
+│   │   ├── architecture.md          ← project structure
+│   │   ├── stack.md                 ← tech stack & commands
+│   │   ├── patterns.md              ← naming & code conventions
+│   │   └── modules/
+│   │       ├── auth.md
+│   │       ├── components.md
+│   │       └── ...
+│   ├── skills/                      ← project-aware skills (opt in)
+│   │   ├── design/SKILL.md
+│   │   ├── devops/SKILL.md          ← + reference.md (Dockerfile, CI)
+│   │   ├── db/SKILL.md
+│   │   └── ship/SKILL.md            ← /ship pipeline orchestrator
+│   └── agents/                      ← multi-agent pipeline (opt in)
+│       ├── planner.md
+│       ├── builder.md
+│       └── tester.md
 └── .git/hooks/post-commit           ← auto-sync on commit
 ```
 
@@ -123,6 +133,35 @@ your-project/
 Cursor's `.mdc` rules use `alwaysApply: true` for global context and file-glob matching for module-level context — so you only pay for what's relevant.
 
 </details>
+
+---
+
+## AGENTS.md + Mandatory Standards
+
+promptpilot-ai also generates a root **`AGENTS.md`** — the cross-tool standard read natively by Claude Code, Codex, Cursor, Copilot, Gemini CLI, Aider, Windsurf, Zed and more. One file → every tool understands your project.
+
+It bakes in **mandatory engineering standards**, adapted to your detected stack:
+
+- **Always** — no duplicate code, use common functions/components, pass the linter (TS strict / PEP 8 / PSR-12 per language), match conventions, never hardcode secrets.
+- **Backend** (if detected) — API performance (no N+1, paginate, index hot columns), reuse the service layer, validate every input, parameterize SQL.
+- **Frontend** (if detected) — UI consistency (reuse components, one styling system), no duplicate UI, accessibility, responsive.
+
+These same standards are injected into `CLAUDE.md` and `.claude/context/patterns.md` / `.cursor/rules/patterns.mdc`, so **every tool enforces them**.
+
+### Self-updating rules
+
+`AGENTS.md` has two zones:
+
+```
+<!-- promptpilot-ai:start -->   ← AUTO: refreshed from your code on every `sync`
+   ...stack, commands, mandatory standards...
+<!-- promptpilot-ai:end -->
+## Project rules (developer-maintained)   ← PERSISTS across syncs
+- Use Zod for all API input validation.
+- All money values stored as integer cents.
+```
+
+When you (or the AI) establish a new convention, preference, or requirement, it's appended under **Project rules** — that section is **never overwritten** by `sync`, so the rules accumulate and every future AI session inherits them.
 
 ---
 
@@ -211,6 +250,47 @@ Run `/pp-stats` inside Claude Code (or `npx promptpilot-ai stats` in your termin
 ```
 
 > **Stale** counts uncommitted source files that fall inside scanned modules — a quick hint that it's time to `sync`.
+
+---
+
+## Project-Aware Skills
+
+Opt in during `init` and promptpilot-ai generates **skills** pre-filled with your stack and conventions — so the AI inherits them instead of re-deriving them every task. Each is auto-invoked when relevant (or call it with `/name`), and is only generated when it applies to your stack.
+
+| Skill | What it does | Knows (auto-detected) |
+|---|---|---|
+| `design` | Build UI the project's way — enforces existing-component reuse | UI library (shadcn / MUI / Livewire / Inertia), CSS approach (Tailwind…), components module, naming |
+| `devops` | Stack-aware Dockerfile, GitHub Actions CI, deploy config (bundles a ready-to-adapt `reference.md`) | package manager, build / test / lint commands, runtime, existing Docker / CI files |
+| `db` | Models, migrations, queries the right way | ORM (Prisma / Drizzle / Eloquent / Django ORM / SQLAlchemy…), database, migrate command, models module |
+
+- **Claude Code** → `.claude/skills/<name>/SKILL.md` (auto-discovered; first run asks for workspace trust).
+- **Cursor** → equivalent `.cursor/rules/<name>.mdc`, glob-scoped so they apply only to relevant files.
+- Refreshed automatically on every `npx promptpilot-ai sync`.
+
+---
+
+## Multi-Agent Pipeline (`/ship`)
+
+Opt in during `init` and promptpilot-ai generates three project-aware subagents plus a `/ship` orchestrator (Claude Code):
+
+```
+/ship add a user profile page
+
+  planner  → reads .claude/context/ + bridge.md, returns a step-by-step plan
+  builder  → implements from the plan, reusing components via the design/db skills
+             (frontend + backend builders run in PARALLEL for multi-repo work)
+  tester   → writes tests with your detected framework, runs them, reports
+```
+
+- The subagents don't share live memory — they **share the generated `.claude/context/` and skills**, and the orchestrator relays each stage's result to the next. That shared context is exactly what promptpilot-ai produces, so the agents stay consistent without re-explaining the stack.
+- **Parallel where it's safe:** independent frontend/backend work runs concurrently; the plan→build→test chain stays ordered.
+- Claude Code only — subagent orchestration has no equivalent Cursor rule. (Cursor's `/multitask` is the closest manual alternative.)
+
+| Agent | Role | Knows (auto-detected) |
+|---|---|---|
+| `planner` | Step-by-step plan, no code | architecture, modules, bridge map |
+| `builder` | Implement from the plan | conventions, reusable components (via `design` / `db` skills) |
+| `tester` | Write + run tests | test framework, test + lint commands |
 
 ---
 

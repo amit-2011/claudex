@@ -1,12 +1,13 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { buildMandatoryStandards } from './standards.js';
 
 const MARKER_START = '<!-- promptpilot-ai:start -->';
 const MARKER_END = '<!-- promptpilot-ai:end -->';
 
-export function updateClaudeMd(cwd, stack, modules) {
+export function updateClaudeMd(cwd, scanData) {
   const claudeMdPath = join(cwd, 'CLAUDE.md');
-  const block = buildBlock(stack, modules);
+  const block = buildBlock(scanData);
 
   if (!existsSync(claudeMdPath)) {
     writeFileSync(claudeMdPath, block);
@@ -18,7 +19,7 @@ export function updateClaudeMd(cwd, stack, modules) {
   if (existing.includes(MARKER_START)) {
     const updated = existing.replace(
       new RegExp(`${escapeRegex(MARKER_START)}[\\s\\S]*?${escapeRegex(MARKER_END)}`),
-      block
+      () => block
     );
     writeFileSync(claudeMdPath, updated);
     return 'updated';
@@ -28,7 +29,8 @@ export function updateClaudeMd(cwd, stack, modules) {
   return 'appended';
 }
 
-function buildBlock(stack, modules) {
+function buildBlock(scanData) {
+  const { stack = {}, modules = [] } = scanData || {};
   const moduleNames = modules.map((m) => m.name);
 
   return `${MARKER_START}
@@ -49,12 +51,12 @@ Before making any changes, read the relevant context files:
 
 ${moduleNames.map((m) => `- \`${m}\` → \`.claude/context/modules/${m.replace(/[^a-z0-9-]/gi, '-').toLowerCase()}.md\``).join('\n')}
 
-## Key Rules
+## Mandatory standards
 
-- **Never duplicate code** — search for existing implementations before creating new ones
-- **Follow detected patterns** — see \`.claude/context/patterns.md\`
-- **Use the correct package manager**: \`${stack.packageManager}\`
-${languageRule(stack.language)}- **Read module context** before modifying files in that module
+${buildMandatoryStandards(scanData, { compact: true })}
+- **Read module context** before modifying files in that module; use \`${stack.packageManager || 'the project package manager'}\`.
+
+Full standards: \`.claude/context/patterns.md\`. Project-specific rules & developer preferences live in **AGENTS.md → Project rules** — when a new convention or requirement is established, append it there so it persists across syncs.
 
 ## Context Sync
 
@@ -63,13 +65,6 @@ If you add a new module or significantly restructure the project, run:
 npx promptpilot-ai sync
 \`\`\`
 ${MARKER_END}`;
-}
-
-function languageRule(language) {
-  if (language === 'TypeScript') return '- **TypeScript strict mode** — no `any`, always use specific types\n';
-  if (language === 'PHP') return '- **Follow PSR-12** — declare `strict_types`, type-hint params/returns, PSR-4 namespaces\n';
-  if (language === 'Python') return '- **Follow PEP 8** — use type hints, snake_case for functions, PascalCase for classes\n';
-  return '';
 }
 
 function escapeRegex(s) {

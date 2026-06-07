@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { describeDir, commandsBlock } from './context.js';
+import { buildMandatoryStandards } from './standards.js';
 
 export function generateCursorRules(cwd, { fileData, stack, modules, patterns }) {
   if (patterns?.stateManagement) stack = { ...stack, stateManagement: patterns.stateManagement };
@@ -13,7 +14,7 @@ export function generateCursorRules(cwd, { fileData, stack, modules, patterns })
 
   writeFileSync(join(rulesDir, 'architecture.mdc'), buildArchitectureMdc(fileData, stack, modules));
   writeFileSync(join(rulesDir, 'stack.mdc'), buildStackMdc(stack, patterns));
-  writeFileSync(join(rulesDir, 'patterns.mdc'), buildPatternsMdc(patterns, stack));
+  writeFileSync(join(rulesDir, 'patterns.mdc'), buildPatternsMdc(patterns, stack, modules));
 
   const written = [];
   for (const mod of modules) {
@@ -138,7 +139,7 @@ ${commandsBlock(stack)}
   return mdc('Tech stack, package manager, and common commands', true, '', content);
 }
 
-function buildPatternsMdc(patterns, stack) {
+function buildPatternsMdc(patterns, stack, modules = []) {
   const archPatterns =
     patterns.patterns?.length > 0
       ? patterns.patterns.map((p) => `- ${p}`).join('\n')
@@ -171,9 +172,9 @@ ${archPatterns}
 ${patterns.hasPathAliases ? '- Use configured path aliases / PSR-4 namespaces instead of deep relative imports' : ''}
 ${stack.uiLibrary === 'Tailwind CSS' ? '- Use Tailwind CSS classes — do not write custom CSS unless necessary' : ''}
 - Before creating a new class, component, or utility, search for an existing one that can be reused
-`.replace(/\n\n+/g, '\n\n');
+`.replace(/\n\n+/g, '\n\n') + '\n\n' + buildMandatoryStandards({ stack, patterns, modules });
 
-  return mdc('Code conventions, naming rules, and patterns — always follow these', true, '', content);
+  return mdc('Code conventions, naming rules, and MANDATORY standards — always follow these', true, '', content);
 }
 
 function buildModuleMdc(mod) {

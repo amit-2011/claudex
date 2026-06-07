@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { buildMandatoryStandards } from './standards.js';
 
 export function generateContextFiles(cwd, { fileData, stack, modules, patterns, stateManagement }) {
   if (patterns.stateManagement) stack = { ...stack, stateManagement: patterns.stateManagement };
@@ -11,7 +12,10 @@ export function generateContextFiles(cwd, { fileData, stack, modules, patterns, 
 
   writeFileSync(join(contextDir, 'architecture.md'), buildArchitecture(fileData, stack, modules));
   writeFileSync(join(contextDir, 'stack.md'), buildStack(stack, patterns));
-  writeFileSync(join(contextDir, 'patterns.md'), buildPatterns(patterns, stack));
+  writeFileSync(
+    join(contextDir, 'patterns.md'),
+    buildPatterns(patterns, stack) + '\n\n' + buildMandatoryStandards({ stack, patterns, modules })
+  );
 
   const written = [];
   for (const mod of modules) {

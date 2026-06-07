@@ -35,6 +35,13 @@ const SLASH = [
   ['/pp-help', 'Show this command reference inside Claude Code.'],
 ];
 
+// Auto-invoked, project-aware. Generated (opt-in) only for the relevant stack.
+const SKILLS = [
+  ['design', 'Build UI the project way — detected component library, CSS approach, existing-component reuse.'],
+  ['devops', 'Stack-aware Docker, CI (GitHub Actions), and deploy config from your package manager + commands.'],
+  ['db', 'Models, migrations, and queries using the detected ORM and migrate command.'],
+];
+
 const WORKFLOW = [
   ['npx promptpilot-ai init', 'once per project'],
   ['/ask  or  /plan', 'while coding'],
@@ -57,6 +64,14 @@ function renderTerminal() {
   for (const [cmd, use] of SLASH) out.push(`    ${cyan(cmd.padEnd(pad))}${dim(use)}`);
 
   out.push('');
+  out.push(`  ${bold('Skills')} ${dim('(auto-invoked + /name, project-aware — opt in at init)')}`);
+  for (const [cmd, use] of SKILLS) out.push(`    ${cyan(('/' + cmd).padEnd(pad))}${dim(use)}`);
+
+  out.push('');
+  out.push(`  ${bold('Multi-agent pipeline')} ${dim('(Claude Code — opt in at init)')}`);
+  out.push(`    ${cyan('/ship <feature>'.padEnd(pad))}${dim('plan → implement → test via planner/builder/tester subagents (parallel for multi-repo)')}`);
+
+  out.push('');
   out.push(`  ${bold('Status bar')} ${dim('(Claude Code)')}`);
   out.push(`    ${dim('Live bottom bar: context size + files + modules + live context-window %.')}`);
   out.push(`    ${dim('Opt in during init; toggle via the statusLine block in .claude/settings.json.')}`);
@@ -77,6 +92,22 @@ function renderMarkdown() {
 
   out.push('', '## Slash commands (inside Claude Code, after init)', '', '| Command | Use case |', '|---|---|');
   for (const [cmd, use] of SLASH) out.push(`| \`${cmd}\` | ${use} |`);
+
+  out.push(
+    '',
+    '## Skills (auto-invoked + `/name`, project-aware — opt in at init)',
+    '',
+    '| Skill | Use case |',
+    '|---|---|'
+  );
+  for (const [cmd, use] of SKILLS) out.push(`| \`/${cmd}\` | ${use} |`);
+
+  out.push(
+    '',
+    '## Multi-agent pipeline (Claude Code — opt in at init)',
+    '',
+    '`/ship <feature>` orchestrates a **plan → implement → test** pipeline using three project-aware subagents (`planner`, `builder`, `tester`) that share the generated context. Independent frontend/backend work runs in parallel.'
+  );
 
   out.push(
     '',

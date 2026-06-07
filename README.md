@@ -83,11 +83,14 @@ flowchart LR
 your-project/
 ├── CLAUDE.md                        ← context index (auto-loaded by Claude)
 ├── .claude/
-│   ├── settings.json                ← permissions pre-configured
+│   ├── settings.json                ← permissions + optional status bar
+│   ├── pp-statusline.mjs            ← status bar script (if opted in)
 │   ├── commands/
 │   │   ├── ask.md                   ← /ask slash command
 │   │   ├── plan.md                  ← /plan slash command
-│   │   └── sync.md                  ← /sync slash command
+│   │   ├── sync.md                  ← /sync slash command
+│   │   ├── pp-stats.md              ← /pp-stats slash command
+│   │   └── pp-help.md               ← /pp-help slash command
 │   └── context/
 │       ├── architecture.md          ← project structure
 │       ├── stack.md                 ← tech stack & commands
@@ -160,6 +163,8 @@ Now when you say `/ask add a user profile page`, AI reads `bridge.md`, finds the
 | `npx promptpilot-ai init` | First-time setup — scan project and generate context |
 | `npx promptpilot-ai sync` | Re-scan after major restructuring or new modules |
 | `npx promptpilot-ai sync --templates` | Also refresh `.claude/commands/*.md` slash command templates (use after a promptpilot-ai upgrade) |
+| `npx promptpilot-ai stats` | Show a context dashboard — files scanned, context size (KB + tokens), modules, last sync, stale files |
+| `npx promptpilot-ai help` | Full command reference — every CLI + slash command with its use-case |
 
 ### Claude Code Slash Commands (after init)
 
@@ -168,8 +173,44 @@ Now when you say `/ask add a user profile page`, AI reads `bridge.md`, finds the
 | `/ask <request>` | Natural language → plan → execute (cross-repo aware) |
 | `/plan <request>` | **Interactive planning** — detects UI vs backend, shows 2–3 layout approaches as ASCII mockups for you to pick, then delivers the final plan with reusable-component reuse enforced |
 | `/sync` | Trigger a context sync from inside Claude Code |
+| `/pp-stats` | Show the context dashboard (files, size, modules, staleness) inside Claude Code |
+| `/pp-help` | List every command (CLI + slash) and its use-case inside Claude Code |
 
 > All slash commands respond in the same language you write your request in (English, Hindi, Hinglish, Spanish, etc.). Code, paths, and identifiers stay in English.
+
+### Status bar (Claude Code)
+
+Opt in during `init` and promptpilot-ai adds a live status line at the bottom of Claude Code:
+
+```
+📊 PP 18KB · 142 files · 7 mod · synced 2h ago  │  ctx 35% (71k/200k) 🟢  │  opus
+```
+
+- **Left** — your generated context (size, files, modules, last sync) read instantly from a cache, no rescan.
+- **Middle** — live context-window usage straight from Claude Code (green → yellow → red as it fills).
+- It never overrides a `statusLine` you already configured. Refreshed on `npx promptpilot-ai sync --templates`.
+
+### Context dashboard
+
+Run `/pp-stats` inside Claude Code (or `npx promptpilot-ai stats` in your terminal) for a full breakdown:
+
+```
+╭──────────────────────────────────────────────╮
+│  promptpilot-ai · context                      │
+│  ────────────────────────────────────────      │
+│  Files scanned     142                         │
+│  Context size      ~18.4 KB  (~4.7k tokens)    │
+│  Modules           7                           │
+│  Last sync         2h ago                      │
+│  Stale             3 files (auth, billing)     │
+│                                                │
+│  components  ██████████   28 files   5.2 KB    │
+│  auth        ████░░░░░░   12 files   3.1 KB    │
+│  lib         ███░░░░░░░   14 files   2.1 KB    │
+╰──────────────────────────────────────────────╯
+```
+
+> **Stale** counts uncommitted source files that fall inside scanned modules — a quick hint that it's time to `sync`.
 
 ---
 
@@ -217,6 +258,9 @@ Yes — select "Both" during init. It generates `.claude/` and `.cursor/rules/` 
 
 **Is it safe to commit the generated files?**
 Yes, commit them. Teammates get context immediately without running init themselves.
+
+**How do I turn the status bar on or off?**
+It's opt-in — `init` asks before enabling it. To turn it off later, remove the `statusLine` block from `.claude/settings.json` (and optionally delete `.claude/pp-statusline.mjs`). To turn it on, run `npx promptpilot-ai init` again, or add the `statusLine` block manually pointing at `node .claude/pp-statusline.mjs`.
 
 ---
 

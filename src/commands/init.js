@@ -10,6 +10,8 @@ import { generateCursorRules } from '../generators/cursor-rules.js';
 import { generateBridgeFile } from '../generators/bridge.js';
 import { updateClaudeMd } from '../generators/claude-md.js';
 import { writeClaudeSettings } from '../generators/settings.js';
+import { installStatusline, refreshStatuslineScript } from '../generators/statusline.js';
+import { writeStatsCache } from '../utils/stats-cache.js';
 import { installGitHook } from '../hooks/install.js';
 import { select, input } from '../utils/prompt.js';
 import { tick, cross, bold, cyan, dim, green, yellow, gray } from '../utils/color.js';
@@ -62,7 +64,26 @@ export async function runInit(cwd) {
 
   await writeOutputFiles(cwd, scanData, isNew, target);
 
+  if (target === 'claude' || target === 'both') {
+    await maybeEnableStatusline(cwd);
+  }
+
   printSuccess(cwd, scanData, isNew, target);
+}
+
+async function maybeEnableStatusline(cwd) {
+  console.log('');
+  const choice = await select('Show a promptpilot-ai status bar in Claude Code?', [
+    { label: 'Yes', value: true },
+    { label: 'No', value: false },
+  ]);
+  if (!choice.value) return;
+  const res = installStatusline(cwd);
+  if (res.installed) {
+    console.log(`\n  ${tick} Status bar enabled ${dim('(.claude/pp-statusline.mjs)')}`);
+  } else {
+    console.log(`\n  ${dim('Status bar: kept your existing statusLine config')}`);
+  }
 }
 
 async function selectTarget() {
@@ -113,6 +134,7 @@ async function runMultiRepoInit(cwd, subRepos, target = 'claude') {
         installGitHook(repo.path);
       }
     }
+    writeStatsCache(repo.path, repo.scanData, target);
     console.log(`  ${tick} ${cyan(repo.name + '/')} context`);
   }
 
@@ -183,6 +205,7 @@ export async function runSync(cwd, opts = {}) {
 function refreshTemplates(cwd, target) {
   if (target === 'claude' || target === 'both') {
     copyCommandTemplates(cwd, { force: true });
+    refreshStatuslineScript(cwd);
   }
 }
 
@@ -353,6 +376,8 @@ async function writeOutputFiles(cwd, scanData, isNew, target = 'claude') {
       }
     }
   }
+
+  writeStatsCache(cwd, scanData, target);
 }
 
 function copyCommandTemplates(cwd, { force = false } = {}) {

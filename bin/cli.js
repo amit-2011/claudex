@@ -53,6 +53,24 @@ async function main() {
       break;
     }
 
+    case 'help': {
+      const { runHelpReference } = await import('../src/commands/help.js');
+      await runHelpReference();
+      break;
+    }
+
+    case 'stats': {
+      const { runStats } = await import('../src/commands/stats.js');
+      await runStats(cwd);
+      break;
+    }
+
+    case 'status': {
+      const { runStatusLine } = await import('../src/commands/stats.js');
+      await runStatusLine(cwd);
+      break;
+    }
+
     case '--version':
     case '-v': {
       console.log(getVersion());
@@ -88,6 +106,9 @@ function printHelp() {
     npx promptpilot-ai init               Set up promptpilot-ai in the current project
     npx promptpilot-ai sync               Re-scan and update all context files
     npx promptpilot-ai sync --templates   Also refresh .claude/commands/*.md templates
+    npx promptpilot-ai stats              Show context stats (files, size, modules)
+    npx promptpilot-ai status             Print the one-line status bar (used by Claude Code)
+    npx promptpilot-ai help               Full command reference with use-cases
     npx promptpilot-ai --version          Show version
 
   \x1b[1mAfter init, use these Claude Code slash commands:\x1b[0m
@@ -95,6 +116,8 @@ function printHelp() {
     /ask  <request>            Convert natural language to a prompt, plan, and execute
     /plan <request>            Generate a plan only — no execution
     /sync                      Trigger a context sync from within Claude Code
+    /pp-stats                  Show the context stats dashboard
+    /pp-help                   List all commands and their use-cases
 
   \x1b[1mExamples:\x1b[0m
 

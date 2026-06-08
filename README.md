@@ -294,6 +294,29 @@ Opt in during `init` and promptpilot-ai generates three project-aware subagents 
 
 ---
 
+## Mobile (React Native · Flutter · Android · iOS)
+
+promptpilot-ai detects and generates context for **mobile** apps too — so AI inherits your mobile stack and conventions instead of guessing.
+
+| Platform | Detected from | What it learns |
+|---|---|---|
+| **React Native / Expo** | `package.json` | navigation, state, persistence (AsyncStorage / MMKV / WatermelonDB), NativeWind / Tamagui / Paper |
+| **Flutter** | `pubspec.yaml` | Riverpod / BLoC / Provider / GetX, Drift / Hive / Isar, go_router, Material / Cupertino |
+| **Native Android** | `build.gradle(.kts)` | Kotlin / Java, Jetpack Compose vs XML, Hilt, Room, Retrofit, Navigation |
+| **Native iOS** | `Package.swift` / `Podfile` | Swift, SwiftUI vs UIKit, CoreData / SwiftData / Realm, SPM / CocoaPods |
+
+**Mandatory standards are platform-aware** (baked into AGENTS.md / CLAUDE.md / patterns):
+
+- **Performance** — virtualize long lists (FlatList · ListView.builder · LazyColumn · List), avoid needless re-renders / rebuilds, never block the UI / main thread, target 60fps.
+- **UI consistency** — reuse the design-system components / widgets, one styling approach, Material 3 / Apple HIG, accessibility (TalkBack / VoiceOver), responsive.
+- **State & data** — the detected state manager + persistence + offline / loading / error states.
+
+**`/mobile` skill** — run & test on an emulator / simulator, write **Maestro** E2E flows, capture & review screenshots, read logs, and build / release — with the exact commands for your platform.
+
+> iOS simulator testing needs macOS + Xcode; Android needs the SDK + an AVD. promptpilot-ai generates the commands — the SDKs/emulators must be installed on the machine.
+
+---
+
 ## Supported Stacks
 
 | Category | Supported |
@@ -302,11 +325,13 @@ Opt in during `init` and promptpilot-ai generates three project-aware subagents 
 | **Backend (Node)** | NestJS, Express, Fastify, Hono, Koa |
 | **Backend (PHP)** | Laravel, Lumen, Symfony |
 | **Backend (Python)** | Django, Django REST Framework, FastAPI, Flask |
-| **Languages** | TypeScript, JavaScript, PHP, Python |
+| **Mobile** | React Native, Expo, Flutter, native Android (Kotlin/Java), native iOS (Swift) |
+| **Languages** | TypeScript, JavaScript, PHP, Python, Dart, Kotlin, Java, Swift |
 | **Databases** | PostgreSQL, MySQL, MongoDB, SQLite |
+| **Mobile storage** | AsyncStorage, MMKV, WatermelonDB, Realm, expo-sqlite · Drift, Hive, Isar, sqflite · Room, DataStore, SQLDelight · CoreData, SwiftData, GRDB |
 | **ORMs** | Prisma, Drizzle, TypeORM, Eloquent, Django ORM, SQLAlchemy, SQLModel, Tortoise |
-| **Package Managers** | pnpm, npm, yarn · Composer · pip, Poetry, Pipenv, uv |
-| **Testing** | Vitest, Jest · PHPUnit, Pest · pytest, unittest |
+| **Package Managers** | pnpm, npm, yarn · Composer · pip, Poetry, Pipenv, uv · pub (Dart) · Gradle · SPM, CocoaPods |
+| **Testing** | Vitest, Jest · PHPUnit, Pest · pytest, unittest · flutter_test · JUnit · XCTest · Maestro, Detox (E2E) |
 
 > **Cross-language bridge:** a JS/TS frontend (Next.js/React) paired with a Laravel or Python backend is auto-detected in multi-repo workspaces — `bridge.md` maps frontend `fetch`/`axios` calls to Laravel `Route::` / FastAPI / Flask / Django endpoints.
 

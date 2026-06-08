@@ -748,7 +748,7 @@ function getDefaultPatterns(frameworkValue) {
 function detectNewProject(cwd) {
   try {
     const files = execSync('git ls-files', { cwd, encoding: 'utf8', stdio: 'pipe' }).trim().split('\n').filter(Boolean);
-    const sourceFiles = files.filter((f) => /\.(ts|tsx|js|jsx|py|php|go|rs)$/.test(f));
+    const sourceFiles = files.filter((f) => /\.(ts|tsx|js|jsx|py|php|go|rs|dart|kt|java|swift)$/.test(f));
     return sourceFiles.length < 3;
   } catch {
     return false; // No git — let scanProject determine structure via filesystem walk

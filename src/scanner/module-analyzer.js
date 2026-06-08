@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname, basename, extname } from 'path';
 
-const SOURCE_DIRS = ['src', 'app', 'lib', 'packages', 'modules', 'api', 'server', 'client'];
+const SOURCE_DIRS = ['src', 'app', 'lib', 'packages', 'modules', 'api', 'server', 'client', 'Sources'];
 const IGNORE_DIRS = [
   'node_modules', '.git', 'dist', 'build', '.next', 'coverage', '__pycache__', '.turbo',
   'vendor', 'storage', '.venv', 'venv', 'env', '.pytest_cache', '.mypy_cache', '.ruff_cache',
@@ -236,12 +236,12 @@ function getSourceDirs(tree) {
 
 function inferModuleType(dir, files) {
   const name = dir.toLowerCase().split('/').pop();
-  if (['components', 'ui', 'views', 'pages', 'screens'].includes(name)) return 'ui';
-  if (['routes', 'controllers', 'handlers', 'api'].includes(name)) return 'api';
-  if (['models', 'entities', 'schemas', 'db', 'database', 'prisma'].includes(name)) return 'database';
-  if (['utils', 'helpers', 'lib', 'shared', 'common'].includes(name)) return 'infra';
+  if (['components', 'ui', 'views', 'pages', 'screens', 'widgets'].includes(name)) return 'ui';
+  if (['routes', 'controllers', 'handlers', 'api', 'navigation'].includes(name)) return 'api';
+  if (['models', 'entities', 'schemas', 'db', 'database', 'prisma', 'dao', 'data'].includes(name)) return 'database';
+  if (['utils', 'helpers', 'lib', 'shared', 'common', 'core'].includes(name)) return 'infra';
   if (['config', 'configs', 'settings', 'env'].includes(name)) return 'config';
-  if (['hooks', 'composables', 'services'].includes(name)) return 'feature';
+  if (['hooks', 'composables', 'services', 'viewmodels', 'blocs', 'cubits', 'providers', 'stores', 'features', 'repositories'].includes(name)) return 'feature';
   return 'feature';
 }
 

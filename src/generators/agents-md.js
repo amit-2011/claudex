@@ -87,6 +87,7 @@ function buildBlock(scanData, target) {
     fw?.type === 'fullstack' ? 'full-stack web app'
     : fw?.type === 'api' ? 'backend API'
     : fw?.type === 'spa' ? 'single-page app'
+    : fw?.type === 'mobile' ? `mobile app (${fw?.name || stack.language})`
     : fw?.type === 'library' ? 'library / CLI'
     : `${stack.language || ''} project`;
 

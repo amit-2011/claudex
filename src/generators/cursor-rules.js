@@ -92,7 +92,10 @@ ${fileData.totalFiles} tracked files
 
 function buildStackMdc(stack, patterns) {
   const depList = Object.entries(stack.keyDeps || {})
-    .map(([pkg, ver]) => `- \`${pkg}@${ver.replace(/[^0-9.]/g, '')}\``)
+    .map(([pkg, ver]) => {
+      const v = String(ver).replace(/[^0-9.]/g, '');
+      return `- \`${pkg}${v ? '@' + v : ''}\``;
+    })
     .join('\n');
 
   const content = `# Tech Stack

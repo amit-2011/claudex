@@ -15,6 +15,11 @@ const CONFIG_NAMES = [
   // Python
   'requirements.txt', 'pyproject.toml', 'Pipfile', 'setup.py', 'setup.cfg',
   'manage.py', 'pytest.ini', 'tox.ini', 'environment.yml',
+  // Mobile — Flutter / Android / iOS / React Native
+  'pubspec.yaml', 'analysis_options.yaml',
+  'build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts', 'gradle/libs.versions.toml',
+  'Package.swift', 'Podfile', 'Podfile.lock',
+  'app.json', 'app.config.js', 'app.config.ts', 'metro.config.js', 'eas.json',
 ];
 
 const WALK_SKIP = new Set([
@@ -23,6 +28,8 @@ const WALK_SKIP = new Set([
   'vendor', 'storage',
   // Python
   '__pycache__', '.venv', 'venv', 'env', '.pytest_cache', '.mypy_cache', '.ruff_cache', '.tox', '.eggs',
+  // Mobile build artifacts
+  '.dart_tool', 'Pods', 'DerivedData', '.gradle', 'Carthage', '.expo', 'Flutter',
 ]);
 
 function walkDir(dir, base, results = []) {

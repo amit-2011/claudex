@@ -6,7 +6,74 @@ export function detectPatterns(files, cwd, stack = {}) {
 
   if (language === 'Python') return detectPythonPatterns(files, cwd, stack);
   if (language === 'PHP') return detectPhpPatterns(files, cwd, stack);
-  return detectJsPatterns(files, cwd);
+  if (language === 'Dart') return detectDartPatterns(files, stack);
+  if (language === 'Kotlin' || language === 'Java') return detectKotlinPatterns(files, stack);
+  if (language === 'Swift') return detectSwiftPatterns(files, stack);
+  return detectJsPatterns(files, cwd); // also covers React Native (TS/JS)
+}
+
+// ──────────────────────────── Dart / Flutter ────────────────────────────
+function detectDartPatterns(files, stack) {
+  const n = files.join(' ');
+  const p = [];
+  if (stack.stateManagement) p.push(`${stack.stateManagement} state management`);
+  if (/_bloc\.dart|_cubit\.dart/.test(n)) p.push('BLoC / Cubit');
+  if (/repository|_repo\.dart/.test(n)) p.push('Repository pattern');
+  if (/_screen\.dart|screens?\//.test(n)) p.push('Screen widgets');
+  if (/widgets?\//.test(n)) p.push('Reusable widgets');
+  if (/\.g\.dart|\.freezed\.dart/.test(n)) p.push('Code generation (freezed / json_serializable)');
+  return {
+    fileNaming: 'snake_case',
+    componentNaming: 'PascalCase (widgets / classes)',
+    importStyle: "package: imports (relative within lib/)",
+    hasPathAliases: false,
+    patterns: p,
+    stateManagement: stack.stateManagement || null,
+    cssApproach: 'Flutter widgets (Material / Cupertino theming)',
+  };
+}
+
+// ──────────────────────────── Kotlin / Java (Android) ────────────────────────────
+function detectKotlinPatterns(files, stack) {
+  const n = files.join(' ');
+  const p = [];
+  if (stack.uiLibrary?.includes('Compose')) p.push('Jetpack Compose UI');
+  else if (stack.uiLibrary) p.push('XML layouts');
+  if (/ViewModel\.(kt|java)|viewmodel/i.test(n)) p.push('MVVM (ViewModel + StateFlow/LiveData)');
+  if (/Repository\.(kt|java)|repository/i.test(n)) p.push('Repository pattern');
+  if (/UseCase\.(kt|java)|usecase/i.test(n)) p.push('Use cases (Clean Architecture)');
+  if (/Dao\.(kt|java)|\/dao\//i.test(n)) p.push('Room DAOs');
+  if (/Module\.(kt|java)/.test(n)) p.push('Hilt / Dagger modules');
+  return {
+    fileNaming: 'PascalCase (files match the public type)',
+    componentNaming: 'PascalCase (classes), camelCase (functions)',
+    importStyle: 'package imports',
+    hasPathAliases: false,
+    patterns: p,
+    stateManagement: stack.stateManagement || null,
+    cssApproach: stack.uiLibrary || null,
+  };
+}
+
+// ──────────────────────────── Swift (iOS) ────────────────────────────
+function detectSwiftPatterns(files, stack) {
+  const n = files.join(' ');
+  const p = [];
+  if (stack.uiLibrary === 'SwiftUI') p.push('SwiftUI views');
+  else if (stack.uiLibrary === 'UIKit') p.push('UIKit (UIViewController)');
+  if (/ViewModel\.swift|viewmodel/i.test(n)) p.push('MVVM (ObservableObject / @Observable)');
+  if (/Coordinator\.swift/.test(n)) p.push('Coordinator navigation');
+  if (/Repository\.swift|repository/i.test(n)) p.push('Repository pattern');
+  if (/Service\.swift|\/Services\//.test(n)) p.push('Service layer');
+  return {
+    fileNaming: 'PascalCase (files match the primary type)',
+    componentNaming: 'PascalCase (types), camelCase (methods / properties)',
+    importStyle: 'import modules',
+    hasPathAliases: false,
+    patterns: p,
+    stateManagement: stack.stateManagement || null,
+    cssApproach: stack.uiLibrary || null,
+  };
 }
 
 // ──────────────────────────── JavaScript / TypeScript ────────────────────────────

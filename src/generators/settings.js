@@ -13,13 +13,16 @@ export function writeClaudeSettings(cwd, stack) {
   const syncCommand = 'npx promptpilot-ai update-context --since-last-sync 2>/dev/null || true';
 
   const allow = new Set([
-    `Bash(${pm}:*)`,
     'Bash(git:*)',
     'Bash(node:*)',
     'Read',
     'Edit',
     'Write',
   ]);
+
+  // The package-manager binary — skip pseudo-managers that aren't real CLIs
+  // (Dart `pub`, Swift `spm`, `cocoapods`, `xcode`); their tools are added below.
+  if (!['pub', 'spm', 'cocoapods', 'xcode'].includes(pm)) allow.add(`Bash(${pm}:*)`);
 
   // npx is always needed for the auto-sync hook
   allow.add('Bash(npx:*)');
@@ -39,6 +42,25 @@ export function writeClaudeSettings(cwd, stack) {
     if (pm === 'pipenv') allow.add('Bash(pipenv:*)');
     if (pm === 'uv') allow.add('Bash(uv:*)');
     if (pm === 'pdm') allow.add('Bash(pdm:*)');
+  }
+
+  // Mobile toolchains (Flutter / Android / iOS / React Native)
+  if (language === 'Dart') {
+    allow.add('Bash(flutter:*)');
+    allow.add('Bash(dart:*)');
+  }
+  if (language === 'Kotlin' || language === 'Java') {
+    allow.add('Bash(./gradlew:*)');
+    allow.add('Bash(gradle:*)');
+  }
+  if (language === 'Swift') {
+    allow.add('Bash(xcodebuild:*)');
+    allow.add('Bash(swift:*)');
+    allow.add('Bash(swiftlint:*)');
+  }
+  if (stack?.framework?.type === 'mobile') {
+    // Emulator / simulator / device + E2E testing
+    ['Bash(adb:*)', 'Bash(emulator:*)', 'Bash(xcrun:*)', 'Bash(pod:*)', 'Bash(maestro:*)'].forEach((p) => allow.add(p));
   }
 
   const settings = {

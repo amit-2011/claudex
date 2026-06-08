@@ -42,6 +42,8 @@ function buildArchitecture(fileData, stack, modules) {
   const type = framework?.type === 'fullstack' ? 'Full-Stack Web App'
     : framework?.type === 'api' ? 'Backend API'
     : framework?.type === 'spa' ? 'Single-Page Application'
+    : framework?.type === 'mobile' ? `Mobile App (${framework?.name || stack.language})`
+    : framework?.type === 'library' ? `${stack.language || ''} Library / CLI`.trim()
     : `${stack.language || 'Unknown'} Project`;
 
   const IGNORE = ['node_modules', '.git', 'dist', 'build', '.next', '.turbo', 'coverage', 'vendor', 'storage', '__pycache__', '.venv', 'venv'];
@@ -83,7 +85,10 @@ ${fileData.totalFiles} tracked files
 
 function buildStack(stack, patterns) {
   const depList = Object.entries(stack.keyDeps || {})
-    .map(([pkg, ver]) => `- \`${pkg}@${ver.replace(/[^0-9.]/g, '')}\``)
+    .map(([pkg, ver]) => {
+      const v = String(ver).replace(/[^0-9.]/g, '');
+      return `- \`${pkg}${v ? '@' + v : ''}\``;
+    })
     .join('\n');
 
   return `# Tech Stack
@@ -142,16 +147,21 @@ export function commandsBlock(stack) {
   }
   const labels = {
     install: 'Install dependencies',
-    dev: 'Start development server',
+    dev: 'Start / run the app',
+    android: 'Run on Android',
+    ios: 'Run on iOS',
     build: 'Production build',
     migrate: 'Run database migrations',
     test: 'Run tests',
     lint: 'Lint code',
   };
-  const order = ['install', 'dev', 'build', 'migrate', 'test', 'lint'];
+  const order = ['install', 'dev', 'android', 'ios', 'build', 'migrate', 'test', 'lint'];
   return order
     .filter((k) => c[k])
-    .map((k) => `${c[k]}`.padEnd(34) + `# ${labels[k]}`)
+    .map((k) => {
+      const cmd = `${c[k]}`;
+      return (cmd.length >= 33 ? cmd + '  ' : cmd.padEnd(34)) + `# ${labels[k]}`;
+    })
     .join('\n');
 }
 
@@ -242,7 +252,10 @@ export function describeDir(d, framework) {
     app: appDesc,
     pages: 'Next.js Pages Router',
     components: 'Reusable UI components',
-    lib: 'Shared utilities and helpers',
+    widgets: 'Reusable UI widgets',
+    screens: 'App screens',
+    Sources: 'Swift source code',
+    lib: fw === 'Flutter' ? 'Flutter application source (Dart)' : 'Shared utilities and helpers',
     utils: 'Utility functions',
     server: 'Server-side code',
     api: 'API routes or controllers',

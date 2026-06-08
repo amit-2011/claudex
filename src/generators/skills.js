@@ -5,11 +5,11 @@ import { join } from 'path';
 // Each skill is pre-filled from the scan data so the AI inherits the project's
 // stack and conventions instead of re-deriving them every task.
 
-const SKILL_NAMES = ['design', 'devops', 'db'];
+const SKILL_NAMES = ['design', 'devops', 'db', 'mobile'];
 
 export function generateSkills(cwd, scanData, target = 'claude') {
   const ctx = buildCtx(cwd, scanData);
-  const skills = [designSkill(ctx), devopsSkill(ctx), dbSkill(ctx)].filter(Boolean);
+  const skills = [designSkill(ctx), devopsSkill(ctx), dbSkill(ctx), mobileSkill(ctx)].filter(Boolean);
 
   const written = [];
   for (const skill of skills) {
@@ -186,6 +186,7 @@ const list = (arr, empty) => (arr.length ? arr.map((x) => `\`${x}\``).join(', ')
 
 // ── design ───────────────────────────────────────────────────────────
 function designSkill(ctx) {
+  if (ctx.frameworkType === 'mobile') return null; // mobile UI guidance lives in the mobile skill
   const isUi =
     ctx.uiPaths.length || ctx.uiLibrary || ctx.cssApproach || ['fullstack', 'spa'].includes(ctx.frameworkType);
   if (!isUi) return null;
@@ -245,6 +246,7 @@ function designSkill(ctx) {
 
 // ── devops ───────────────────────────────────────────────────────────
 function devopsSkill(ctx) {
+  if (ctx.frameworkType === 'mobile') return null; // mobile build/release lives in the mobile skill
   const c = ctx.cmds;
   const body = `# DevOps for ${ctx.framework}
 
@@ -383,6 +385,7 @@ jobs:
 
 // ── db ───────────────────────────────────────────────────────────────
 function dbSkill(ctx) {
+  if (ctx.frameworkType === 'mobile') return null; // mobile persistence lives in the mobile skill
   if (!ctx.orm && !ctx.database && !ctx.dbPaths.length) return null;
 
   const orm = ctx.orm || 'raw SQL';
@@ -427,6 +430,57 @@ function ormRule(orm) {
     Doctrine: 'Doctrine: update entities, generate a migration with the Doctrine migrations bundle, then run it.',
   };
   return map[orm] || 'Follow the project\'s existing migration workflow; keep schema and code in sync.';
+}
+
+// ── mobile (run / test on emulator / performance / build) ────────────
+function mobileSkill(ctx) {
+  if (ctx.frameworkType !== 'mobile') return null;
+  const name = ctx.framework;
+  const isRN = name === 'React Native' || name === 'Expo';
+  const isFlutter = name === 'Flutter';
+  const isAndroid = name === 'Android';
+  const isIos = name === 'iOS';
+  const c = ctx.cmds || {};
+
+  const list = isRN ? 'FlatList / FlashList' : isFlutter ? 'ListView.builder / Sliver lists' : isAndroid ? 'LazyColumn / RecyclerView' : isIos ? 'List / LazyVStack / UITableView' : 'a virtualized list';
+  const off = isRN ? 'keep heavy work off the JS thread' : isFlutter ? 'use isolates / compute() for heavy work' : isAndroid ? 'use coroutines + Dispatchers.IO (never block the main thread)' : isIos ? 'use async/await off the main actor' : 'offload heavy work off the UI thread';
+  const shot = isFlutter ? 'flutter screenshot' : isIos ? 'xcrun simctl io booted screenshot shot.png' : 'adb exec-out screencap -p > shot.png';
+  const runCmd = c.android || c.dev || 'the run command';
+
+  const body = `# Mobile dev, testing & performance for ${name}
+
+## Detected setup
+- Platform: ${name} (${ctx.language})
+- Run: \`${c.dev || 'n/a'}\`${c.android ? ` · Android: \`${c.android}\`` : ''}${c.ios ? ` · iOS: \`${c.ios}\`` : ''}
+- Test: \`${c.test || 'n/a'}\` · Build: \`${c.build || 'n/a'}\` · Lint: \`${c.lint || 'n/a'}\`
+- UI: ${ctx.uiLibrary || 'platform default'} · State: ${ctx.stateManagement || 'n/a'} · Storage: ${ctx.database || 'n/a'}
+
+## Performance (mandatory)
+- Virtualize long lists with ${list}; avoid needless re-renders/rebuilds; ${off}; cache & right-size images; keep 60fps (no jank).
+
+## Run & test on an emulator / simulator
+1. Start a device, then run the app: \`${runCmd}\`.
+   - Android: \`emulator -list-avds\` → \`emulator -avd <name>\`; verify with \`adb devices\`.
+   - iOS (macOS only): \`xcrun simctl list devices\` → boot one → run.
+2. Unit / widget tests: \`${c.test || 'the test command'}\`.
+3. UI / E2E: prefer **Maestro** — write a flow in \`.maestro/<flow>.yaml\` and run \`maestro test .maestro/<flow>.yaml\`.${isRN ? ' (Detox also works for React Native.)' : ''}
+4. Verify visually: capture a screenshot — \`${shot}\` — then review the image.
+5. On failure, read logs: \`adb logcat\` (Android) / simulator logs (iOS).
+
+## Build / release
+- Debug build: \`${c.build || 'the build command'}\`. Release builds need signing (Android keystore / iOS provisioning profile) — never commit signing secrets.
+
+## Requirements
+- The machine must have the SDK + an emulator/simulator installed. **iOS simulator requires macOS + Xcode.** These are not provided by the tool.`;
+
+  return {
+    name: 'mobile',
+    description: `Run, test on an emulator/simulator, and optimize the ${name} app — performance, builds, and UI/E2E testing. Use for running the app, emulator/simulator, tests, builds, or performance work.`,
+    whenToUse: 'Triggered on: run, emulator, simulator, device, test, e2e, maestro, detox, build, release, apk, ipa, performance, jank, fps, screenshot.',
+    allowedTools: 'Read Grep Bash',
+    globs: '',
+    body,
+  };
 }
 
 // ── cleanup helper (optional, exported for completeness) ──────────────

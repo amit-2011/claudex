@@ -37,9 +37,10 @@ const SLASH = [
 
 // Auto-invoked, project-aware. Generated (opt-in) only for the relevant stack.
 const SKILLS = [
-  ['design', 'Build UI the project way — detected component library, CSS approach, existing-component reuse.'],
+  ['design', 'Build UI the project way — detected component library, CSS approach, existing-component reuse (web).'],
   ['devops', 'Stack-aware Docker, CI (GitHub Actions), and deploy config from your package manager + commands.'],
   ['db', 'Models, migrations, and queries using the detected ORM and migrate command.'],
+  ['mobile', 'Run & test on an emulator/simulator, Maestro E2E, performance, and build/release — per detected platform.'],
 ];
 
 const WORKFLOW = [

@@ -13,12 +13,17 @@ import { writeClaudeSettings } from '../generators/settings.js';
 import { generateAgentsMd, generateRootAgentsMd } from '../generators/agents-md.js';
 import { installStatusline, refreshStatuslineScript } from '../generators/statusline.js';
 import { generateSkills, skillsInstalled } from '../generators/skills.js';
-import { generateAgents, agentsInstalled } from '../generators/agents.js';
+import { generateAgents, generateGeminiAgents, agentsInstalled } from '../generators/agents.js';
+import { generateGemini, writeGeminiSettings, generateGeminiCommands, regenerateGeminiModuleFiles } from '../generators/gemini.js';
+import { generateAntigravity, generateAntigravityWorkflows, regenerateAntigravityRules } from '../generators/antigravity.js';
 import { writeStatsCache } from '../utils/stats-cache.js';
 import { installGitHook } from '../hooks/install.js';
-import { select, input } from '../utils/prompt.js';
+import { select, multiSelect, input } from '../utils/prompt.js';
 import { tick, cross, bold, cyan, dim, green, yellow, gray } from '../utils/color.js';
 import { checkVersionAndNotify, clearVersionCache } from '../utils/version-check.js';
+import { wants, normalizeTargets, primaryDir } from '../utils/targets.js';
+
+const COMMANDS_DIR = () => join(TEMPLATES_DIR, 'commands');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = join(__dirname, '..', '..', 'templates');
@@ -39,13 +44,13 @@ export async function runInit(cwd) {
     console.log(`  ${yellow('No git repo found')} ${dim('— scanning filesystem directly')}\n`);
   }
 
-  const target = await selectTarget();
+  const targets = await selectTargets();
   console.log('');
 
   // Multi-repo mode: root folder with sub-repos (backend + frontend)
   const subRepos = detectSubRepos(cwd);
   if (subRepos.length >= 2) {
-    await runMultiRepoInit(cwd, subRepos, target);
+    await runMultiRepoInit(cwd, subRepos, targets);
     return;
   }
 
@@ -65,20 +70,20 @@ export async function runInit(cwd) {
     }
   }
 
-  await writeOutputFiles(cwd, scanData, isNew, target);
+  await writeOutputFiles(cwd, scanData, isNew, targets);
 
-  if (target === 'claude' || target === 'both') {
+  if (wants(targets, 'claude')) {
     await maybeEnableStatusline(cwd);
   }
-  await maybeGenerateSkills(cwd, scanData, target);
-  if (target === 'claude' || target === 'both') {
-    await maybeGenerateAgents(cwd, scanData, target);
+  await maybeGenerateSkills(cwd, scanData, targets);
+  if (wants(targets, 'claude') || wants(targets, 'gemini')) {
+    await maybeGenerateAgents(cwd, scanData, targets);
   }
 
-  printSuccess(cwd, scanData, isNew, target);
+  printSuccess(cwd, scanData, isNew, targets);
 }
 
-async function maybeGenerateAgents(cwd, scanData, target) {
+async function maybeGenerateAgents(cwd, scanData, targets) {
   console.log('');
   const choice = await select('Generate a multi-agent pipeline (planner → builder → tester + /ship)?', [
     { label: 'Yes', value: true },
@@ -86,30 +91,42 @@ async function maybeGenerateAgents(cwd, scanData, target) {
   ]);
   if (!choice.value) return;
 
-  const names = generateAgents(cwd, scanData, target);
-  if (names.length) {
-    console.log(`\n  ${tick} Agents generated ${dim(`(${names.join(', ')})`)} ${dim('→ .claude/agents/ + /ship skill')}`);
+  const where = [];
+  let names = [];
+  if (wants(targets, 'claude')) { names = generateAgents(cwd, scanData); where.push('.claude/agents/ + /ship skill'); }
+  if (wants(targets, 'gemini')) { names = generateGeminiAgents(cwd, scanData); where.push('.gemini/agents/ + ship.toml'); }
+
+  if (names.length && where.length) {
+    console.log(`\n  ${tick} Agents generated ${dim(`(${names.join(', ')})`)} ${dim('→ ' + where.join(', '))}`);
     console.log(`    ${dim('Use')} ${cyan('/ship')} ${dim('<feature>')} ${dim('to run plan → implement → test')}`);
   }
 }
 
-async function maybeGenerateSkills(cwd, scanData, target) {
+async function maybeGenerateSkills(cwd, scanData, targets) {
   console.log('');
+
+  // Antigravity has no separate skill files — that guidance is already baked into
+  // .agents/rules/. If no skill-capable tool is selected, don't prompt.
+  const skillTargets = ['claude', 'gemini', 'cursor'].filter((t) => wants(targets, t));
+  if (!skillTargets.length) {
+    console.log(`  ${dim('Skill guidance for Antigravity is embedded in .agents/rules/ — no separate skill files.')}`);
+    return;
+  }
+
   const choice = await select('Generate project-aware skills (design, devops, db)?', [
     { label: 'Yes', value: true },
     { label: 'No', value: false },
   ]);
   if (!choice.value) return;
 
-  const names = generateSkills(cwd, scanData, target);
+  const names = generateSkills(cwd, scanData, targets);
   if (!names.length) {
     console.log(`\n  ${dim('No applicable skills for this stack')}`);
     return;
   }
-  const where =
-    target === 'cursor' ? '.cursor/rules/'
-    : target === 'both' ? '.claude/skills/ + .cursor/rules/'
-    : '.claude/skills/';
+  const where = skillTargets
+    .map((t) => (t === 'cursor' ? '.cursor/rules/' : `.${t}/skills/`))
+    .join(' + ');
   console.log(`\n  ${tick} Skills generated ${dim(`(${names.join(', ')})`)} ${dim('→ ' + where)}`);
 }
 
@@ -128,16 +145,18 @@ async function maybeEnableStatusline(cwd) {
   }
 }
 
-async function selectTarget() {
-  const choice = await select('Which AI tool are you using?', [
+async function selectTargets() {
+  const chosen = await multiSelect('Which AI tools are you using?', [
     { label: 'Claude Code', value: 'claude' },
     { label: 'Cursor', value: 'cursor' },
-    { label: 'Both', value: 'both' },
+    { label: 'Gemini CLI', value: 'gemini' },
+    { label: 'Antigravity', value: 'antigravity' },
   ]);
-  return choice.value;
+  return chosen.map((c) => c.value);
 }
 
-async function runMultiRepoInit(cwd, subRepos, target = 'claude') {
+async function runMultiRepoInit(cwd, subRepos, target = ['claude']) {
+  const targets = normalizeTargets(target);
   const frontend = subRepos.find((r) => r.role === 'frontend');
   const backend = subRepos.find((r) => r.role === 'backend');
 
@@ -164,35 +183,43 @@ async function runMultiRepoInit(cwd, subRepos, target = 'claude') {
 
   // Write context for each sub-repo into its own folder
   for (const repo of scanResults) {
-    if (target === 'claude' || target === 'both') {
+    if (wants(targets, 'claude')) {
       generateContextFiles(repo.path, repo.scanData);
       updateClaudeMd(repo.path, repo.scanData);
       writeClaudeSettings(repo.path, repo.scanData.stack);
-      installGitHook(repo.path);
     }
-    if (target === 'cursor' || target === 'both') {
+    if (wants(targets, 'cursor')) {
       generateCursorRules(repo.path, repo.scanData);
-      if (target === 'cursor') {
-        installGitHook(repo.path);
-      }
     }
-    const repoAgents = generateAgentsMd(repo.path, repo.scanData, target);
-    writeStatsCache(repo.path, repo.scanData, target);
+    if (wants(targets, 'gemini')) {
+      generateGemini(repo.path, repo.scanData);
+      writeGeminiSettings(repo.path);
+    }
+    if (wants(targets, 'antigravity')) {
+      generateAntigravity(repo.path, repo.scanData);
+    }
+    installGitHook(repo.path);
+    const repoAgents = generateAgentsMd(repo.path, repo.scanData, targets);
+    writeStatsCache(repo.path, repo.scanData, targets);
     console.log(`  ${tick} ${cyan(repo.name + '/')} context ${dim(`+ AGENTS.md (${repoAgents})`)}`);
   }
 
-  // Write root-level context + bridge
-  if (target === 'claude' || target === 'both') {
-    copyCommandTemplates(cwd);
-  }
+  // Write root-level slash commands
+  if (wants(targets, 'claude')) copyCommandTemplates(cwd);
+  if (wants(targets, 'gemini')) generateGeminiCommands(cwd, COMMANDS_DIR());
+  if (wants(targets, 'antigravity')) generateAntigravityWorkflows(cwd, COMMANDS_DIR());
+
+  // One root .gitignore covers every sub-repo's per-machine state (bare patterns).
+  if (ensureGitignore(cwd)) console.log(`  ${tick} ${cyan('.gitignore')} ${dim('(ignore per-machine .last-sync / .pp-stats.json)')}`);
+  const untrackedRoot = untrackLocalState(cwd);
+  if (untrackedRoot.length) console.log(`  ${tick} ${dim(`Untracked ${untrackedRoot.length} per-machine file(s) from git`)}`);
 
   if (frontend && backend) {
     const frontendData = scanResults.find((r) => r.name === frontend.name);
     const backendData = scanResults.find((r) => r.name === backend.name);
     if (frontendData && backendData) {
       generateBridgeFile(cwd, frontendData, backendData);
-      const bridgePath = target === 'cursor' ? '.cursor/bridge.md' : '.claude/context/bridge.md';
-      console.log(`  ${tick} ${cyan(bridgePath)} ${dim('(frontend ↔ backend API map)')}`);
+      console.log(`  ${tick} ${cyan('.claude/context/bridge.md')} ${dim('(frontend ↔ backend API map)')}`);
     }
   }
 
@@ -205,14 +232,20 @@ async function runMultiRepoInit(cwd, subRepos, target = 'claude') {
   console.log('');
   console.log(`  ${green('─'.repeat(40))}`);
 
-  if (target === 'claude' || target === 'both') {
+  if (wants(targets, 'claude')) {
     console.log(`  ${tick} ${bold('Ready!')} Open this folder in Claude Code and try:`);
     console.log('');
     console.log(`    ${cyan('/ask')} add a user profile page`);
     console.log(`    ${dim('Claude will read bridge.md and coordinate both repos')}`);
   }
-  if (target === 'cursor' || target === 'both') {
+  if (wants(targets, 'cursor')) {
     console.log(`  ${tick} ${bold('Ready!')} Open this folder in Cursor — rules are auto-loaded from ${cyan('.cursor/rules/')}`);
+  }
+  if (wants(targets, 'gemini')) {
+    console.log(`  ${tick} ${bold('Ready!')} Open this folder with Gemini CLI — context is in ${cyan('GEMINI.md')} + ${cyan('.gemini/')}`);
+  }
+  if (wants(targets, 'antigravity')) {
+    console.log(`  ${tick} ${bold('Ready!')} Open this folder in Antigravity — rules in ${cyan('.agents/rules/')}, AGENTS.md auto-loaded`);
   }
   console.log('');
 }
@@ -224,12 +257,12 @@ export async function runSync(cwd, opts = {}) {
 
   console.log(`\n  ${cyan('promptpilot-ai')} — Syncing project context\n`);
 
-  const target = detectExistingTarget(cwd);
+  const targets = detectExistingTargets(cwd);
 
   const subRepos = detectSubRepos(cwd);
   if (subRepos.length >= 2) {
-    await runMultiRepoInit(cwd, subRepos, target);
-    if (opts.templates) refreshTemplates(cwd, target);
+    await runMultiRepoInit(cwd, subRepos, targets);
+    if (opts.templates) refreshTemplates(cwd, targets);
     if (opts.templates) clearVersionCache(cwd);
     return;
   }
@@ -240,20 +273,22 @@ export async function runSync(cwd, opts = {}) {
     process.exit(1);
   }
 
-  await writeOutputFiles(cwd, scanData, false, target);
+  await writeOutputFiles(cwd, scanData, false, targets);
 
   if (skillsInstalled(cwd)) {
-    const names = generateSkills(cwd, scanData, target);
+    const names = generateSkills(cwd, scanData, targets);
     if (names.length) console.log(`  ${tick} Skills refreshed ${dim(`(${names.join(', ')})`)}`);
   }
 
   if (agentsInstalled(cwd)) {
-    const names = generateAgents(cwd, scanData, target);
+    let names = [];
+    if (wants(targets, 'claude')) names = generateAgents(cwd, scanData);
+    if (wants(targets, 'gemini')) names = generateGeminiAgents(cwd, scanData);
     if (names.length) console.log(`  ${tick} Agents refreshed ${dim(`(${names.join(', ')})`)}`);
   }
 
   if (opts.templates) {
-    refreshTemplates(cwd, target);
+    refreshTemplates(cwd, targets);
     clearVersionCache(cwd);
     console.log(`  ${tick} Templates refreshed ${dim('(slash commands updated)')}`);
   }
@@ -261,11 +296,13 @@ export async function runSync(cwd, opts = {}) {
   console.log(`\n  ${tick} Context updated.\n`);
 }
 
-function refreshTemplates(cwd, target) {
-  if (target === 'claude' || target === 'both') {
+function refreshTemplates(cwd, targets) {
+  if (wants(targets, 'claude')) {
     copyCommandTemplates(cwd, { force: true });
     refreshStatuslineScript(cwd);
   }
+  if (wants(targets, 'gemini')) generateGeminiCommands(cwd, COMMANDS_DIR(), { force: true });
+  if (wants(targets, 'antigravity')) generateAntigravityWorkflows(cwd, COMMANDS_DIR(), { force: true });
 }
 
 export async function runUpdateContext(cwd, changedFiles) {
@@ -280,13 +317,11 @@ export async function runUpdateContext(cwd, changedFiles) {
 
   const result = await scanChangedFiles(cwd, changedFiles);
   if (result && result.affectedModules.length) {
-    const target = detectExistingTarget(cwd);
-    if (target === 'claude' || target === 'both') {
-      regenerateModuleFiles(cwd, result.affectedModules);
-    }
-    if (target === 'cursor' || target === 'both') {
-      regenerateCursorModuleFiles(cwd, result.affectedModules);
-    }
+    const targets = detectExistingTargets(cwd);
+    if (wants(targets, 'claude')) regenerateModuleFiles(cwd, result.affectedModules);
+    if (wants(targets, 'cursor')) regenerateCursorModuleFiles(cwd, result.affectedModules);
+    if (wants(targets, 'gemini')) regenerateGeminiModuleFiles(cwd, result.affectedModules);
+    if (wants(targets, 'antigravity')) regenerateAntigravityRules(cwd, result.affectedModules);
     writeLastSyncMarker(cwd);
   }
 
@@ -303,9 +338,8 @@ export async function runUpdateContextSinceLastSync(cwd) {
 }
 
 function getLastSyncPath(cwd) {
-  const target = detectExistingTarget(cwd);
-  const dir = target === 'cursor' ? '.cursor' : '.claude';
-  return join(cwd, dir, '.last-sync');
+  const targets = detectExistingTargets(cwd);
+  return join(cwd, primaryDir(targets), '.last-sync');
 }
 
 function writeLastSyncMarker(cwd) {
@@ -381,23 +415,25 @@ async function runScan(cwd) {
   return data;
 }
 
-async function writeOutputFiles(cwd, scanData, isNew, target = 'claude') {
+async function writeOutputFiles(cwd, scanData, isNew, target = ['claude']) {
+  const targets = normalizeTargets(target);
   console.log(`\n  ${dim('Writing context files...')}\n`);
 
-  if (target === 'claude' || target === 'both') {
+  const printModules = (written, dir) => {
+    if (written.length > 0) {
+      console.log(`  ${tick} ${cyan(`${dir}/modules/`)}${dim(` (${written.length} modules)`)}`);
+      for (const m of written) console.log(`    ${gray('•')} ${m.name} ${dim(`(${m.fileCount} files)`)}`);
+    } else if (isNew) {
+      console.log(`  ${tick} ${cyan(`${dir}/modules/`)} ${dim('(empty — add code and run sync)')}`);
+    }
+  };
+
+  if (wants(targets, 'claude')) {
     const written = generateContextFiles(cwd, scanData);
     console.log(`  ${tick} ${cyan('.claude/context/architecture.md')}`);
     console.log(`  ${tick} ${cyan('.claude/context/stack.md')}`);
     console.log(`  ${tick} ${cyan('.claude/context/patterns.md')}`);
-
-    if (written.length > 0) {
-      console.log(`  ${tick} ${cyan('.claude/context/modules/')}${dim(` (${written.length} modules)`)}`);
-      for (const m of written) {
-        console.log(`    ${gray('•')} ${m.name} ${dim(`(${m.fileCount} files)`)}`);
-      }
-    } else if (isNew) {
-      console.log(`  ${tick} ${cyan('.claude/context/modules/')} ${dim('(empty — add code and run sync)')}`);
-    }
+    printModules(written, '.claude/context');
 
     copyCommandTemplates(cwd);
 
@@ -406,40 +442,54 @@ async function writeOutputFiles(cwd, scanData, isNew, target = 'claude') {
 
     writeClaudeSettings(cwd, scanData.stack);
     console.log(`  ${tick} .claude/settings.json`);
-
-    const hookResult = installGitHook(cwd);
-    if (hookResult.success) {
-      console.log(`  ${tick} Git hook ${dim('(post-commit auto-sync)')}`);
-    }
   }
 
-  if (target === 'cursor' || target === 'both') {
+  if (wants(targets, 'cursor')) {
     const cursorWritten = generateCursorRules(cwd, scanData);
     console.log(`  ${tick} ${cyan('.cursor/rules/architecture.mdc')}`);
     console.log(`  ${tick} ${cyan('.cursor/rules/stack.mdc')}`);
     console.log(`  ${tick} ${cyan('.cursor/rules/patterns.mdc')}`);
-
-    if (cursorWritten.length > 0) {
-      console.log(`  ${tick} ${cyan('.cursor/rules/modules/')}${dim(` (${cursorWritten.length} modules)`)}`);
-      for (const m of cursorWritten) {
-        console.log(`    ${gray('•')} ${m.name} ${dim(`(${m.fileCount} files)`)}`);
-      }
-    } else if (isNew) {
-      console.log(`  ${tick} ${cyan('.cursor/rules/modules/')} ${dim('(empty — add code and run sync)')}`);
-    }
-
-    if (target === 'cursor') {
-      const hookResult = installGitHook(cwd);
-      if (hookResult.success) {
-        console.log(`  ${tick} Git hook ${dim('(post-commit auto-sync)')}`);
-      }
-    }
+    printModules(cursorWritten, '.cursor/rules');
   }
 
-  const agentsMdStatus = generateAgentsMd(cwd, scanData, target);
+  if (wants(targets, 'gemini')) {
+    const geminiWritten = generateGemini(cwd, scanData);
+    console.log(`  ${tick} ${cyan('GEMINI.md')} ${dim('+ .gemini/context/ (architecture, stack, patterns)')}`);
+    printModules(geminiWritten, '.gemini/context');
+    writeGeminiSettings(cwd);
+    console.log(`  ${tick} ${cyan('.gemini/settings.json')} ${dim('(reads AGENTS.md + GEMINI.md)')}`);
+    const cmds = generateGeminiCommands(cwd, COMMANDS_DIR());
+    if (cmds.length) console.log(`  ${tick} ${cyan('.gemini/commands/')} ${dim(`(${cmds.length} TOML commands)`)}`);
+    console.log(`  ${tick} ${cyan('.geminiignore')}`);
+  }
+
+  if (wants(targets, 'antigravity')) {
+    const agWritten = generateAntigravity(cwd, scanData);
+    console.log(`  ${tick} ${cyan('.agents/rules/')} ${dim('(architecture, stack, patterns — glob-scoped)')}`);
+    printModules(agWritten, '.agents/rules');
+    const flows = generateAntigravityWorkflows(cwd, COMMANDS_DIR());
+    if (flows.length) console.log(`  ${tick} ${cyan('.agents/workflows/')} ${dim(`(${flows.length} workflows)`)}`);
+  }
+
+  const agentsMdStatus = generateAgentsMd(cwd, scanData, targets);
   console.log(`  ${tick} AGENTS.md ${dim(`${agentsMdStatus} — mandatory standards + Project rules (all AI tools)`)}`);
 
-  writeStatsCache(cwd, scanData, target);
+  const hookResult = installGitHook(cwd);
+  if (hookResult.success) {
+    console.log(`  ${tick} Git hook ${dim('(post-commit auto-sync)')}`);
+  }
+
+  writeStatsCache(cwd, scanData, targets);
+
+  // Per-machine state (sync marker + stats cache) must never be committed — it
+  // churns per developer and causes merge conflicts on shared repos.
+  if (ensureGitignore(cwd)) {
+    console.log(`  ${tick} .gitignore ${dim('(ignore per-machine .last-sync / .pp-stats.json)')}`);
+  }
+  const untracked = untrackLocalState(cwd);
+  if (untracked.length) {
+    console.log(`  ${tick} ${dim(`Untracked ${untracked.length} per-machine file(s) from git (working copies kept)`)}`);
+  }
 }
 
 function copyCommandTemplates(cwd, { force = false } = {}) {
@@ -764,12 +814,64 @@ function isGitRepo(cwd) {
   }
 }
 
-function detectExistingTarget(cwd) {
-  const hasClaude = existsSync(join(cwd, '.claude'));
-  const hasCursor = existsSync(join(cwd, '.cursor', 'rules'));
-  if (hasClaude && hasCursor) return 'both';
-  if (hasCursor) return 'cursor';
-  return 'claude';
+// Per-machine, non-deterministic files promptpilot writes into each tool dir.
+// They must be git-ignored so multiple developers on one repo don't churn /
+// conflict on them. Bare patterns (no slash) match at any depth → also cover
+// monorepo sub-repos like `frontend/.claude/.last-sync`.
+const GITIGNORE_MARKER = '# promptpilot-ai — per-machine local state (do not commit)';
+const LOCAL_STATE_PATTERNS = ['.last-sync', '.pp-stats.json', '_promptpilot-update.mdc'];
+const LOCAL_STATE_RE = /(?:^|\/)(\.last-sync|\.pp-stats\.json|_promptpilot-update\.mdc)$/;
+
+// Append the ignore patterns to .gitignore (idempotent; skips ones already
+// present). Returns true if it changed the file.
+function ensureGitignore(cwd) {
+  if (!isGitRepo(cwd)) return false;
+  const path = join(cwd, '.gitignore');
+  let existing = '';
+  if (existsSync(path)) existing = readFileSync(path, 'utf8');
+  if (existing.includes(GITIGNORE_MARKER)) return false;
+
+  const present = new Set(existing.split('\n').map((l) => l.trim()));
+  const missing = LOCAL_STATE_PATTERNS.filter((p) => !present.has(p));
+  if (!missing.length) return false;
+
+  const block = `${GITIGNORE_MARKER}\n${missing.join('\n')}\n`;
+  const out = existing.trim() ? existing.trimEnd() + '\n\n' + block : block;
+  try {
+    writeFileSync(path, out);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// If any per-machine file was previously committed (e.g. before this fix), stop
+// tracking it so it leaves the repo on the next commit. `--cached` keeps the
+// working copy. Returns the list of untracked paths.
+function untrackLocalState(cwd) {
+  if (!isGitRepo(cwd)) return [];
+  try {
+    const all = execSync('git ls-files', { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+      .split('\n')
+      .filter(Boolean);
+    const files = all.filter((f) => LOCAL_STATE_RE.test(f));
+    if (!files.length) return [];
+    execSync(`git rm --cached --quiet -- ${files.map((f) => JSON.stringify(f)).join(' ')}`, { cwd, stdio: 'ignore' });
+    return files;
+  } catch {
+    return [];
+  }
+}
+
+function detectExistingTargets(cwd) {
+  const t = [];
+  // Gate each tool on an artifact promptpilot actually writes — never a bare
+  // `.claude/` (a Claude-Code user may commit one without opting into promptpilot).
+  if (existsSync(join(cwd, '.claude', 'context')) || existsSync(join(cwd, 'CLAUDE.md'))) t.push('claude');
+  if (existsSync(join(cwd, '.cursor', 'rules'))) t.push('cursor');
+  if (existsSync(join(cwd, 'GEMINI.md')) || existsSync(join(cwd, '.gemini', 'context'))) t.push('gemini');
+  if (existsSync(join(cwd, '.agents', 'rules')) || existsSync(join(cwd, '.agents', 'workflows'))) t.push('antigravity');
+  return t.length ? t : ['claude'];
 }
 
 function printHeader() {
@@ -779,11 +881,12 @@ function printHeader() {
   console.log('');
 }
 
-function printSuccess(cwd, scanData, isNew, target = 'claude') {
+function printSuccess(cwd, scanData, isNew, target = ['claude']) {
+  const targets = normalizeTargets(target);
   console.log('');
   console.log(`  ${green('─'.repeat(40))}`);
 
-  if (target === 'claude' || target === 'both') {
+  if (wants(targets, 'claude')) {
     console.log(`  ${tick} ${bold('Ready for Claude Code!')} Try:`);
     console.log('');
     if (isNew) {
@@ -795,9 +898,21 @@ function printSuccess(cwd, scanData, isNew, target = 'claude') {
     console.log('');
   }
 
-  if (target === 'cursor' || target === 'both') {
+  if (wants(targets, 'cursor')) {
     console.log(`  ${tick} ${bold('Ready for Cursor!')} Rules auto-loaded from ${cyan('.cursor/rules/')}`);
     console.log(`    ${dim('Cursor reads these automatically when you open files in each module')}`);
+    console.log('');
+  }
+
+  if (wants(targets, 'gemini')) {
+    console.log(`  ${tick} ${bold('Ready for Gemini CLI!')} Context in ${cyan('GEMINI.md')}; commands in ${cyan('.gemini/commands/')}`);
+    console.log(`    ${dim('Run')} ${cyan('gemini')} ${dim('in this folder — try /ask or /plan')}`);
+    console.log('');
+  }
+
+  if (wants(targets, 'antigravity')) {
+    console.log(`  ${tick} ${bold('Ready for Antigravity!')} Rules in ${cyan('.agents/rules/')}; workflows in ${cyan('.agents/workflows/')}`);
+    console.log(`    ${dim('AGENTS.md is auto-loaded; run /ask or /plan as a workflow')}`);
     console.log('');
   }
 

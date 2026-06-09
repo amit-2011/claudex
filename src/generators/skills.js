@@ -1,21 +1,24 @@
 import { mkdirSync, writeFileSync, existsSync, rmSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
+import { wants } from '../utils/targets.js';
 
-// Generates project-aware skills (Claude Code) and equivalent Cursor rules.
-// Each skill is pre-filled from the scan data so the AI inherits the project's
-// stack and conventions instead of re-deriving them every task.
+// Generates project-aware skills (Claude Code / Gemini CLI SKILL.md dirs) and
+// equivalent Cursor rules. Each skill is pre-filled from the scan data so the AI
+// inherits the project's stack and conventions instead of re-deriving them.
 
 const SKILL_NAMES = ['design', 'devops', 'db', 'mobile'];
 
-export function generateSkills(cwd, scanData, target = 'claude') {
+export function generateSkills(cwd, scanData, targets = ['claude']) {
   const ctx = buildCtx(cwd, scanData);
   const skills = [designSkill(ctx), devopsSkill(ctx), dbSkill(ctx), mobileSkill(ctx)].filter(Boolean);
 
   const written = [];
   for (const skill of skills) {
-    if (target === 'claude' || target === 'both') writeClaudeSkill(cwd, skill);
-    if (target === 'cursor' || target === 'both') writeCursorRule(cwd, skill);
-    written.push(skill.name);
+    let wrote = false;
+    if (wants(targets, 'claude')) { writeSkillDir(cwd, '.claude', skill); wrote = true; }
+    if (wants(targets, 'gemini')) { writeSkillDir(cwd, '.gemini', skill); wrote = true; }
+    if (wants(targets, 'cursor')) { writeCursorRule(cwd, skill); wrote = true; }
+    if (wrote) written.push(skill.name); // Antigravity has no skill files — guidance lives in .agents/rules/
   }
   return written;
 }
@@ -24,13 +27,15 @@ export function skillsInstalled(cwd) {
   return SKILL_NAMES.some(
     (n) =>
       existsSync(join(cwd, '.claude', 'skills', n, 'SKILL.md')) ||
+      existsSync(join(cwd, '.gemini', 'skills', n, 'SKILL.md')) ||
       existsSync(join(cwd, '.cursor', 'rules', `${n}.mdc`))
   );
 }
 
 // ── writers ──────────────────────────────────────────────────────────
-function writeClaudeSkill(cwd, skill) {
-  const dir = join(cwd, '.claude', 'skills', skill.name);
+// SKILL.md-dir format, shared by Claude (.claude/skills) and Gemini (.gemini/skills).
+function writeSkillDir(cwd, base, skill) {
+  const dir = join(cwd, base, 'skills', skill.name);
   mkdirSync(dir, { recursive: true });
 
   const fm = ['---', `name: ${skill.name}`, `description: ${skill.description}`];
@@ -487,6 +492,7 @@ function mobileSkill(ctx) {
 export function removeSkills(cwd) {
   for (const n of SKILL_NAMES) {
     try { rmSync(join(cwd, '.claude', 'skills', n), { recursive: true, force: true }); } catch {}
+    try { rmSync(join(cwd, '.gemini', 'skills', n), { recursive: true, force: true }); } catch {}
     try { rmSync(join(cwd, '.cursor', 'rules', `${n}.mdc`), { force: true }); } catch {}
   }
 }

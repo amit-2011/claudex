@@ -99,19 +99,19 @@ async function main() {
 
 function printHelp() {
   console.log(`
-  \x1b[36mpromptpilot-ai\x1b[0m v${getVersion()} — Claude Code Context Layer
+  \x1b[36mpromptpilot-ai\x1b[0m v${getVersion()} — AI Context Layer (Claude Code · Cursor · Gemini CLI · Antigravity)
 
   \x1b[1mUsage:\x1b[0m
 
     npx promptpilot-ai init               Set up promptpilot-ai in the current project
     npx promptpilot-ai sync               Re-scan and update all context files
-    npx promptpilot-ai sync --templates   Also refresh .claude/commands/*.md templates
+    npx promptpilot-ai sync --templates   Also refresh slash commands / workflows
     npx promptpilot-ai stats              Show context stats (files, size, modules)
     npx promptpilot-ai status             Print the one-line status bar (used by Claude Code)
     npx promptpilot-ai help               Full command reference with use-cases
     npx promptpilot-ai --version          Show version
 
-  \x1b[1mAfter init, use these Claude Code slash commands:\x1b[0m
+  \x1b[1mAfter init, use these slash commands (Claude Code / Gemini CLI / Antigravity):\x1b[0m
 
     /ask  <request>            Convert natural language to a prompt, plan, and execute
     /plan <request>            Generate a plan only — no execution

@@ -15,7 +15,7 @@ function version() {
 
 // Single source of truth for the command reference (CLI `help` + `/pp-help`).
 const CLI = [
-  ['init', 'First-time setup in a project — scan the codebase, generate context, pick Claude / Cursor / Both, and opt into the status bar.'],
+  ['init', 'First-time setup in a project — scan the codebase, generate context, pick any of Claude Code / Cursor / Gemini CLI / Antigravity, and opt into the status bar.'],
   ['sync', 'Re-scan and regenerate all context after new modules, file restructuring, or a major refactor.'],
   ['sync --templates', 'After upgrading promptpilot-ai — also refresh the slash commands and the status bar script.'],
   ['stats', 'Show the context dashboard: size (KB + tokens), files, modules, last sync, and stale files.'],

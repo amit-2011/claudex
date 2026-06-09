@@ -34,7 +34,11 @@ const visibleLen = (s) => s.replace(/\x1b\[[0-9;]*m/g, '').length;
 
 // ── stats computation ───────────────────────────────────────────────
 function readLastSync(cwd, target) {
-  const dir = target === 'cursor' ? '.cursor' : '.claude';
+  const dir =
+    target === 'cursor' ? '.cursor'
+    : target === 'gemini' ? '.gemini'
+    : target === 'antigravity' ? '.agents'
+    : '.claude';
   try {
     const ms = parseInt(readFileSync(join(cwd, dir, '.last-sync'), 'utf8'), 10);
     return Number.isFinite(ms) ? ms : null;

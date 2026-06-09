@@ -37,7 +37,12 @@ export function regenerateModuleFiles(cwd, modules) {
   }
 }
 
-function buildArchitecture(fileData, stack, modules) {
+// Shared module → filename slug (kept identical across every generator).
+export function moduleFilename(name, ext = '.md') {
+  return name.replace(/[^a-z0-9-]/gi, '-').toLowerCase() + ext;
+}
+
+export function buildArchitecture(fileData, stack, modules) {
   const framework = stack.framework;
   const type = framework?.type === 'fullstack' ? 'Full-Stack Web App'
     : framework?.type === 'api' ? 'Backend API'
@@ -83,7 +88,7 @@ ${fileData.totalFiles} tracked files
 `;
 }
 
-function buildStack(stack, patterns) {
+export function buildStack(stack, patterns) {
   const depList = Object.entries(stack.keyDeps || {})
     .map(([pkg, ver]) => {
       const v = String(ver).replace(/[^0-9.]/g, '');
@@ -165,7 +170,7 @@ export function commandsBlock(stack) {
     .join('\n');
 }
 
-function buildPatterns(patterns, stack) {
+export function buildPatterns(patterns, stack) {
   const archPatterns = patterns.patterns.length > 0
     ? patterns.patterns.map((p) => `- ${p}`).join('\n')
     : '- No specific patterns detected';
@@ -200,7 +205,7 @@ ${stack.uiLibrary === 'Tailwind CSS' ? '- Use Tailwind CSS classes — do not wr
 `.replace(/\n\n+/g, '\n\n');
 }
 
-function buildModule(mod) {
+export function buildModule(mod) {
   const fileList = mod.files.map((f) => `- \`${f}\``).join('\n');
   const testList = mod.testFiles?.length > 0
     ? mod.testFiles.map((f) => `- \`${f}\``).join('\n')

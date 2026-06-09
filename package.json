@@ -1,7 +1,7 @@
 {
   "name": "promptpilot-ai",
-  "version": "0.9.0",
-  "description": "AI context layer for Claude Code and Cursor — scans your web, backend, or mobile codebase once so AI understands your architecture, stack, and patterns without blind file hunting",
+  "version": "0.10.0",
+  "description": "AI context layer for Claude Code, Cursor, Gemini CLI, and Antigravity — scans your web, backend, or mobile codebase once so AI understands your architecture, stack, and patterns without blind file hunting",
   "type": "module",
   "bin": {
     "promptpilot-ai": "./bin/cli.js"
@@ -38,6 +38,10 @@
     "cursor-ai",
     "cursor-rules",
     "claude",
+    "gemini",
+    "gemini-cli",
+    "antigravity",
+    "agents-md",
     "ai-context",
     "codebase-context",
     "llm",

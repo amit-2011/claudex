@@ -4,7 +4,7 @@
 
 ### AI context layer for your codebase
 
-**Works with Claude Code · Cursor · Both**
+**Works with Claude Code · Cursor · Gemini CLI · Antigravity**
 
 [![npm](https://img.shields.io/npm/v/promptpilot-ai?color=blue&style=flat-square)](https://www.npmjs.com/package/promptpilot-ai)
 [![license](https://img.shields.io/npm/l/promptpilot-ai?style=flat-square)](./LICENSE)
@@ -24,9 +24,9 @@
 
 ## The Pitch
 
-Every AI coding task starts the same way: Claude or Cursor reads 8–12 files to "understand" your project before writing useful code. That's **~25,000 tokens spent on context-hunting**, every single task.
+Every AI coding task starts the same way: Claude, Cursor, Gemini, or Antigravity reads 8–12 files to "understand" your project before writing useful code. That's **~25,000 tokens spent on context-hunting**, every single task.
 
-`promptpilot-ai` scans your codebase **once** and writes structured markdown context files that Claude Code and Cursor read automatically.
+`promptpilot-ai` scans your codebase **once** and writes structured context files that Claude Code, Cursor, Gemini CLI, and Antigravity read automatically — each in its own native format.
 
 | | Without promptpilot-ai | With promptpilot-ai |
 |---|---|---|
@@ -43,16 +43,14 @@ Every AI coding task starts the same way: Claude or Cursor reads 8–12 files to
 npx promptpilot-ai@latest init
 ```
 
-Pick your AI tool and you're done:
+Pick one or more AI tools (comma-separated) and you're done:
 
 ```
-? Which AI tool are you using?
-  ❯ Claude Code
-    Cursor
-    Both
+? Which AI tools are you using?  (1) Claude Code  (2) Cursor  (3) Gemini CLI  (4) Antigravity
+  Enter number(s), comma-separated (e.g. 1,3)
 ```
 
-Open your project in Claude Code or Cursor — context loads automatically.
+Open your project in any of them — context loads automatically.
 
 ![promptpilot-ai terminal demo](https://cdn.jsdelivr.net/npm/promptpilot-ai/assets/terminal-demo.png)
 
@@ -63,14 +61,14 @@ Open your project in Claude Code or Cursor — context loads automatically.
 ```mermaid
 flowchart LR
     A[Your Codebase] -->|scan once| B[promptpilot-ai]
-    B -->|generates| C[.claude/context/<br/>.cursor/rules/]
-    C -->|auto-loaded by| D[Claude Code / Cursor]
+    B -->|generates| C[.claude/context/<br/>.cursor/rules/<br/>GEMINI.md + .gemini/<br/>.agents/rules/ + AGENTS.md]
+    C -->|auto-loaded by| D[Claude Code / Cursor /<br/>Gemini CLI / Antigravity]
     D -->|~6K tokens per task| E[Faster, cheaper AI]
 ```
 
 1. **Scan** — walks your project, detects stack, modules, naming patterns
-2. **Generate** — writes structured markdown context files (architecture, stack, patterns, per-module)
-3. **AI reads** — Claude Code / Cursor auto-load context before any task
+2. **Generate** — writes structured context files (architecture, stack, patterns, per-module) in each tool's native format
+3. **AI reads** — Claude Code / Cursor / Gemini CLI / Antigravity auto-load context before any task
 
 ---
 
@@ -134,11 +132,58 @@ Cursor's `.mdc` rules use `alwaysApply: true` for global context and file-glob m
 
 </details>
 
+<details>
+<summary><strong>For Gemini CLI</strong></summary>
+
+```
+your-project/
+├── GEMINI.md                          ← context index (@imports the files below)
+├── .geminiignore                      ← directories Gemini skips
+└── .gemini/
+    ├── settings.json                  ← context.fileName: ["AGENTS.md","GEMINI.md"] + mcpServers
+    ├── context/
+    │   ├── architecture.md
+    │   ├── stack.md
+    │   ├── patterns.md
+    │   └── modules/*.md
+    ├── commands/                      ← TOML slash commands ({{args}})
+    │   ├── ask.toml  plan.toml  sync.toml  pp-stats.toml  pp-help.toml
+    │   └── ship.toml                  ← /ship pipeline (opt in)
+    ├── skills/*/SKILL.md              ← project-aware skills (opt in)
+    └── agents/                        ← planner / builder / tester subagents (opt in)
+```
+
+`GEMINI.md` uses Gemini's `@path` import syntax to pull in the context files, and `.gemini/settings.json` adds `AGENTS.md` to `context.fileName` so the shared standards load too. Commands are **TOML** with `{{args}}` (Gemini's placeholder), not Markdown with `$ARGUMENTS`.
+
+</details>
+
+<details>
+<summary><strong>For Antigravity</strong></summary>
+
+```
+your-project/
+├── AGENTS.md                          ← read natively by Antigravity
+└── .agents/
+    ├── rules/                         ← glob-scoped rules (the Cursor .mdc analog)
+    │   ├── architecture.md            ← trigger: always_on
+    │   ├── stack.md                   ← trigger: always_on
+    │   ├── patterns.md                ← trigger: always_on
+    │   └── modules/*.md               ← trigger: glob (loaded for matching files)
+    └── workflows/                     ← Markdown slash commands ("Workflows")
+        └── ask.md  plan.md  sync.md  pp-stats.md  pp-help.md
+```
+
+Antigravity reads `AGENTS.md` natively (v1.20.3+), so the shared standards apply with zero extra config; `.agents/rules/` adds glob-scoped per-module context and `.agents/workflows/` adds Markdown slash commands.
+
+> ℹ️ Antigravity's config conventions are newer and partly community-documented. The exact rule frontmatter keys / `.agents` directory name may evolve — see [`docs/gemini-antigravity-support-plan.md`](./docs/gemini-antigravity-support-plan.md) for the verification notes.
+
+</details>
+
 ---
 
 ## AGENTS.md + Mandatory Standards
 
-promptpilot-ai also generates a root **`AGENTS.md`** — the cross-tool standard read natively by Claude Code, Codex, Cursor, Copilot, Gemini CLI, Aider, Windsurf, Zed and more. One file → every tool understands your project.
+promptpilot-ai also generates a root **`AGENTS.md`** — the cross-tool standard read natively by Claude Code, Codex, Cursor, Copilot, Antigravity, Aider, Windsurf, Zed and more (Gemini CLI reads it once it's added to `context.fileName` — promptpilot wires that up for you). One file → every tool understands your project.
 
 It bakes in **mandatory engineering standards**, adapted to your detected stack:
 
@@ -146,7 +191,7 @@ It bakes in **mandatory engineering standards**, adapted to your detected stack:
 - **Backend** (if detected) — API performance (no N+1, paginate, index hot columns), reuse the service layer, validate every input, parameterize SQL.
 - **Frontend** (if detected) — UI consistency (reuse components, one styling system), no duplicate UI, accessibility, responsive.
 
-These same standards are injected into `CLAUDE.md` and `.claude/context/patterns.md` / `.cursor/rules/patterns.mdc`, so **every tool enforces them**.
+These same standards are injected into every tool's context — `CLAUDE.md` + `.claude/context/patterns.md`, `.cursor/rules/patterns.mdc`, `GEMINI.md` + `.gemini/context/patterns.md`, and `.agents/rules/patterns.md` — so **every tool enforces them**.
 
 ### Self-updating rules
 
@@ -205,15 +250,17 @@ Now when you say `/ask add a user profile page`, AI reads `bridge.md`, finds the
 | `npx promptpilot-ai stats` | Show a context dashboard — files scanned, context size (KB + tokens), modules, last sync, stale files |
 | `npx promptpilot-ai help` | Full command reference — every CLI + slash command with its use-case |
 
-### Claude Code Slash Commands (after init)
+### Slash Commands (after init)
+
+Generated for Claude Code (`.claude/commands/*.md`), Gemini CLI (`.gemini/commands/*.toml`), and Antigravity (`.agents/workflows/*.md`).
 
 | Command | Description |
 |---|---|
 | `/ask <request>` | Natural language → plan → execute (cross-repo aware) |
 | `/plan <request>` | **Interactive planning** — detects UI vs backend, shows 2–3 layout approaches as ASCII mockups for you to pick, then delivers the final plan with reusable-component reuse enforced |
-| `/sync` | Trigger a context sync from inside Claude Code |
-| `/pp-stats` | Show the context dashboard (files, size, modules, staleness) inside Claude Code |
-| `/pp-help` | List every command (CLI + slash) and its use-case inside Claude Code |
+| `/sync` | Trigger a context sync from inside your AI tool |
+| `/pp-stats` | Show the context dashboard (files, size, modules, staleness) |
+| `/pp-help` | List every command (CLI + slash) and its use-case |
 
 > All slash commands respond in the same language you write your request in (English, Hindi, Hinglish, Spanish, etc.). Code, paths, and identifiers stay in English.
 
@@ -264,14 +311,16 @@ Opt in during `init` and promptpilot-ai generates **skills** pre-filled with you
 | `db` | Models, migrations, queries the right way | ORM (Prisma / Drizzle / Eloquent / Django ORM / SQLAlchemy…), database, migrate command, models module |
 
 - **Claude Code** → `.claude/skills/<name>/SKILL.md` (auto-discovered; first run asks for workspace trust).
+- **Gemini CLI** → `.gemini/skills/<name>/SKILL.md` (same SKILL.md format).
 - **Cursor** → equivalent `.cursor/rules/<name>.mdc`, glob-scoped so they apply only to relevant files.
+- **Antigravity** → the same guidance lives in the glob-scoped `.agents/rules/`.
 - Refreshed automatically on every `npx promptpilot-ai sync`.
 
 ---
 
 ## Multi-Agent Pipeline (`/ship`)
 
-Opt in during `init` and promptpilot-ai generates three project-aware subagents plus a `/ship` orchestrator (Claude Code):
+Opt in during `init` and promptpilot-ai generates three project-aware subagents plus a `/ship` orchestrator (Claude Code → `.claude/agents/` + a ship skill; Gemini CLI → `.gemini/agents/` + a `ship.toml` command):
 
 ```
 /ship add a user profile page
@@ -284,7 +333,7 @@ Opt in during `init` and promptpilot-ai generates three project-aware subagents 
 
 - The subagents don't share live memory — they **share the generated `.claude/context/` and skills**, and the orchestrator relays each stage's result to the next. That shared context is exactly what promptpilot-ai produces, so the agents stay consistent without re-explaining the stack.
 - **Parallel where it's safe:** independent frontend/backend work runs concurrently; the plan→build→test chain stays ordered.
-- Claude Code only — subagent orchestration has no equivalent Cursor rule. (Cursor's `/multitask` is the closest manual alternative.)
+- Claude Code and Gemini CLI only — both support file-based subagents. Cursor and Antigravity have no file-based subagent equivalent yet.
 
 | Agent | Role | Knows (auto-detected) |
 |---|---|---|
@@ -353,16 +402,16 @@ promptpilot-ai checks npm for new versions once a day (throttled, opt-out via `N
 ## FAQ
 
 **Do I need an API key?**
-No. Uses your existing Claude Code plan or Cursor subscription — no extra API keys.
+No. Uses your existing Claude Code, Cursor, Gemini CLI, or Antigravity plan — no extra API keys.
 
 **Does it work without git?**
 Yes. Without `.git`, the filesystem is walked directly (skipping `node_modules`, `dist`, `.next`, etc.).
 
-**Can I use it with both Claude and Cursor?**
-Yes — select "Both" during init. It generates `.claude/` and `.cursor/rules/` simultaneously.
+**Can I use it with more than one tool at once?**
+Yes — at `init`, select any combination (e.g. `1,3` for Claude Code + Gemini CLI). It generates each tool's files simultaneously and they all share one root `AGENTS.md`. `sync` auto-detects which tools you set up and refreshes them all.
 
 **Is it safe to commit the generated files?**
-Yes, commit them. Teammates get context immediately without running init themselves.
+Yes — commit the **context** files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.claude/context/`, `.cursor/rules/`, `.gemini/`, `.agents/`, skills, commands). Teammates get context immediately without running init. The **per-machine** files (`.last-sync`, `.pp-stats.json`, and the Cursor update notice) are auto-added to `.gitignore` at init/sync so multiple developers on one repo never churn or merge-conflict on them. If an older setup already committed them, the next `init`/`sync` untracks them for you (`git rm --cached`, keeping your local copy) — just commit that change once.
 
 **How do I turn the status bar on or off?**
 It's opt-in — `init` asks before enabling it. To turn it off later, remove the `statusLine` block from `.claude/settings.json` (and optionally delete `.claude/pp-statusline.mjs`). To turn it on, run `npx promptpilot-ai init` again, or add the `statusLine` block manually pointing at `node .claude/pp-statusline.mjs`.

@@ -1,50 +1,77 @@
 import { mkdirSync, writeFileSync, existsSync, rmSync } from 'fs';
 import { join } from 'path';
 
-// Generates a project-aware multi-agent pipeline for Claude Code:
-// planner → builder → tester custom subagents + a `/ship` orchestrator skill.
-// The agents "share context" by all reading the generated .claude/context/ and
-// .claude/skills/ files; the orchestrator (main agent) relays results between them.
-// Claude Code only — subagent orchestration has no reliable Cursor equivalent yet.
+// Generates a project-aware multi-agent pipeline: planner → builder → tester
+// custom subagents + a `/ship` orchestrator. Supported for Claude Code
+// (.claude/agents/*.md + a ship skill) and Gemini CLI (.gemini/agents/*.md +
+// a ship.toml command). Both use Markdown + YAML frontmatter for the agents.
+// The agents "share context" by all reading the generated per-tool context and
+// skills files; the orchestrator relays results between them.
+// No reliable Cursor / Antigravity file-based subagent equivalent yet.
 
 const AGENT_NAMES = ['planner', 'builder', 'tester'];
 
-export function generateAgents(cwd, scanData, target = 'claude') {
-  if (target !== 'claude' && target !== 'both') return []; // Claude-only feature
+const CLAUDE_DIRS = { context: '.claude/context', skills: '.claude/skills' };
+const GEMINI_DIRS = { context: '.gemini/context', skills: '.gemini/skills' };
 
-  const ctx = ctxOf(scanData);
+// ── Claude Code ──────────────────────────────────────────────────────
+export function generateAgents(cwd, scanData) {
+  const ctx = ctxOf(scanData, CLAUDE_DIRS);
   const defs = [plannerAgent(ctx), builderAgent(ctx), testerAgent(ctx)];
 
   const dir = join(cwd, '.claude', 'agents');
   mkdirSync(dir, { recursive: true });
   for (const def of defs) {
-    const fm = ['---', `name: ${def.name}`, `description: ${def.description}`, `tools: ${def.tools}`, '---', ''];
-    writeFileSync(join(dir, `${def.name}.md`), fm.join('\n') + def.body);
+    writeFileSync(join(dir, `${def.name}.md`), agentFile(def));
   }
 
   writeShipSkill(cwd, ctx);
   return [...AGENT_NAMES, 'ship'];
 }
 
+// ── Gemini CLI ───────────────────────────────────────────────────────
+export function generateGeminiAgents(cwd, scanData) {
+  const ctx = ctxOf(scanData, GEMINI_DIRS);
+  const defs = [plannerAgent(ctx), builderAgent(ctx), testerAgent(ctx)];
+
+  const dir = join(cwd, '.gemini', 'agents');
+  mkdirSync(dir, { recursive: true });
+  for (const def of defs) {
+    writeFileSync(join(dir, `${def.name}.md`), agentFile(def));
+  }
+
+  writeShipCommand(cwd, ctx);
+  return [...AGENT_NAMES, 'ship'];
+}
+
+function agentFile(def) {
+  const fm = ['---', `name: ${def.name}`, `description: ${def.description}`, `tools: ${def.tools}`, '---', ''];
+  return fm.join('\n') + def.body;
+}
+
 export function agentsInstalled(cwd) {
   return (
     AGENT_NAMES.some((n) => existsSync(join(cwd, '.claude', 'agents', `${n}.md`))) ||
-    existsSync(join(cwd, '.claude', 'skills', 'ship', 'SKILL.md'))
+    existsSync(join(cwd, '.claude', 'skills', 'ship', 'SKILL.md')) ||
+    AGENT_NAMES.some((n) => existsSync(join(cwd, '.gemini', 'agents', `${n}.md`)))
   );
 }
 
 export function removeAgents(cwd) {
   for (const n of AGENT_NAMES) {
     try { rmSync(join(cwd, '.claude', 'agents', `${n}.md`), { force: true }); } catch {}
+    try { rmSync(join(cwd, '.gemini', 'agents', `${n}.md`), { force: true }); } catch {}
   }
   try { rmSync(join(cwd, '.claude', 'skills', 'ship'), { recursive: true, force: true }); } catch {}
+  try { rmSync(join(cwd, '.gemini', 'commands', 'ship.toml'), { force: true }); } catch {}
 }
 
 // ── context ──────────────────────────────────────────────────────────
-function ctxOf(scanData) {
+function ctxOf(scanData, dirs) {
   const { stack = {}, patterns = {} } = scanData || {};
   const c = stack.commands || {};
   return {
+    dirs,
     framework: stack.framework?.name || stack.language || 'this project',
     language: stack.language || 'the project language',
     pm: stack.packageManager || 'npm',
@@ -65,9 +92,9 @@ function plannerAgent(ctx) {
     body: `You are the **planner** for a ${ctx.framework} (${ctx.language}) project.
 
 Before planning, read the shared project context so the plan fits this codebase:
-- \`.claude/context/architecture.md\`, \`stack.md\`, \`patterns.md\`
-- the relevant module file(s) in \`.claude/context/modules/\`
-- for full-stack / multi-repo work, \`.claude/context/bridge.md\` (frontend ↔ backend endpoint map)
+- \`${ctx.dirs.context}/architecture.md\`, \`stack.md\`, \`patterns.md\`
+- the relevant module file(s) in \`${ctx.dirs.context}/modules/\`
+- for full-stack / multi-repo work, \`${ctx.dirs.context}/bridge.md\` (frontend ↔ backend endpoint map)
 
 Then produce a SHORT, concrete plan:
 1. **Files** to create / modify — exact paths, grouped by module.
@@ -87,8 +114,8 @@ function builderAgent(ctx) {
     body: `You are the **builder** for a ${ctx.framework} (${ctx.language}, ${ctx.pm}) project.
 
 You receive a plan. Before coding, read the shared context so you match conventions:
-- \`.claude/context/patterns.md\` (naming, imports) and \`stack.md\`
-- the relevant skill in \`.claude/skills/\` if present — \`design\` lists the reusable UI components and styling rules; \`db\` lists the ORM and migration workflow.
+- \`${ctx.dirs.context}/patterns.md\` (naming, imports) and \`stack.md\`
+- the relevant skill in \`${ctx.dirs.skills}/\` if present — \`design\` lists the reusable UI components and styling rules; \`db\` lists the ORM and migration workflow.
 
 Implement the plan:
 - **Reuse** existing components / utilities / endpoints — do not duplicate.
@@ -109,7 +136,7 @@ function testerAgent(ctx) {
     body: `You are the **tester** for a ${ctx.framework} project using ${ctx.testFramework || 'the project test framework'}.
 
 You receive a summary of what the builder implemented.
-1. Read the changed files and \`.claude/context/patterns.md\` for test conventions.
+1. Read the changed files and \`${ctx.dirs.context}/patterns.md\` for test conventions.
 2. Add or extend tests with **${ctx.testFramework || 'the project test framework'}**, matching the existing test file naming and location.
 3. Run them: \`${testCmd}\`.${ctx.lint ? ` Then run lint: \`${ctx.lint}\`.` : ''}
 4. If a test fails, fix the test if it is wrong, otherwise report the exact failure for the builder to fix.
@@ -118,22 +145,9 @@ Output: the test files added + the final run result (pass / fail with the key ou
   };
 }
 
-// ── orchestrator skill ───────────────────────────────────────────────
-function writeShipSkill(cwd, ctx) {
-  const dir = join(cwd, '.claude', 'skills', 'ship');
-  mkdirSync(dir, { recursive: true });
-
-  const fm = [
-    '---',
-    'name: ship',
-    `description: Orchestrate a full plan → implement → test pipeline for a feature in ${ctx.framework} using the planner, builder, and tester subagents.`,
-    'argument-hint: [feature description]',
-    'disable-model-invocation: true',
-    '---',
-    '',
-  ];
-
-  const body = `Run a coordinated pipeline to ship: $ARGUMENTS
+// ── orchestrator ─────────────────────────────────────────────────────
+function shipBody(ctx) {
+  return `Run a coordinated pipeline to ship: $ARGUMENTS
 
 You are the **orchestrator**. Run these steps IN ORDER, in THIS (main) conversation — subagents cannot spawn their own subagents, so you must drive the delegation:
 
@@ -143,7 +157,32 @@ You are the **orchestrator**. Run these steps IN ORDER, in THIS (main) conversat
 3. **Test** — delegate to the \`tester\` agent, passing the builder's summary of changed files.
 4. **Report** — summarize: plan → files changed → test result. If tests failed, offer to loop the failure back to the \`builder\`.
 
-Each agent reads the shared \`.claude/context/\` and \`.claude/skills/\`, so they stay consistent without you re-explaining conventions. Keep your own messages short — let the agents do the work.`;
+Each agent reads the shared \`${ctx.dirs.context}/\` and \`${ctx.dirs.skills}/\`, so they stay consistent without you re-explaining conventions. Keep your own messages short — let the agents do the work.`;
+}
 
-  writeFileSync(join(dir, 'SKILL.md'), fm.join('\n') + body);
+function writeShipSkill(cwd, ctx) {
+  const dir = join(cwd, '.claude', 'skills', 'ship');
+  mkdirSync(dir, { recursive: true });
+  const fm = [
+    '---',
+    'name: ship',
+    `description: Orchestrate a full plan → implement → test pipeline for a feature in ${ctx.framework} using the planner, builder, and tester subagents.`,
+    'argument-hint: [feature description]',
+    'disable-model-invocation: true',
+    '---',
+    '',
+  ];
+  writeFileSync(join(dir, 'SKILL.md'), fm.join('\n') + shipBody(ctx));
+}
+
+function writeShipCommand(cwd, ctx) {
+  const dir = join(cwd, '.gemini', 'commands');
+  mkdirSync(dir, { recursive: true });
+  // Gemini custom command (TOML): $ARGUMENTS → {{args}} for the prompt body.
+  const body = shipBody(ctx).replace(/\$ARGUMENTS/g, '{{args}}');
+  const desc = `Orchestrate a plan → implement → test pipeline for ${ctx.framework}`;
+  writeFileSync(
+    join(dir, 'ship.toml'),
+    `description = "${desc.replace(/"/g, '\\"')}"\nprompt = '''\n${body}\n'''\n`
+  );
 }

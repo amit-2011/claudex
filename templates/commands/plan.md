@@ -19,12 +19,18 @@ If bridge.md exists: identify whether this task touches the frontend, backend, o
 
 ## Phase 1 — Restate & Detect
 
-Output exactly two short lines in this phase, nothing more:
+Output exactly three short lines in this phase, nothing more:
 
 1. **Restatement:** one precise technical sentence describing what needs to be done.
 2. **Task type:** `UI` / `Backend` / `Both`.
+3. **Change scope:** `New surface` / `Incremental change`.
 
 Detect as **UI** if the request mentions: page, screen, component, form, modal, button, layout, dashboard, table, sidebar, header, card, list view, navigation — or it affects files matching `*.tsx` / `*.jsx` / `*.vue` / `*.svelte` / `*.blade.php` / templates (`*.html` in a Django/Flask `templates/` dir) — or the involved module is a frontend module (components, views, resources, templates) per `architecture.md`.
+
+Detect **Change scope**:
+
+- **New surface** — a screen, page, view, or section that does not exist yet, or a full redesign of an existing layout.
+- **Incremental change** — adding or modifying an element inside an existing component: tooltip, button, field, badge, icon, copy, validation, handler, state, or styling. The surrounding layout already exists.
 
 If task type is **Backend** only → skip Phase 2 and go directly to Phase 3.
 
@@ -32,7 +38,7 @@ If task type is **Backend** only → skip Phase 2 and go directly to Phase 3.
 
 ## Phase 2 — Interactive design (UI / Both tasks only)
 
-### 2a. Reuse check — prevent duplicate components
+### 2a. Reuse check — prevent duplicate components (always run for UI / Both)
 
 From the relevant frontend module file in `.claude/context/modules/`, list every existing component, hook, or utility that could fulfill part of this request (cite file path + 1-line purpose).
 
@@ -40,13 +46,17 @@ From the relevant frontend module file in `.claude/context/modules/`, list every
   - **Reuse `<ExistingComponent>` (path)** — describe how it would be composed/extended for this task.
   - **Create new** — describe why the existing one does not fit.
     Wait for the answer before continuing.
-- If no match exists → state "No reusable match found — will design new" and proceed to 2b.
+- If no match exists → state "No reusable match found — will design new" and proceed.
 
 Never propose a new component when a reusable one exists without asking first. This is the duplicate-code guard.
 
-### 2b. Layout approaches — visual selection
+### 2b. Layout approaches — visual selection (only when Change scope = `New surface`)
 
-Generate **2–3 distinct layout approaches** for the UI. For each approach, draw an **ASCII mockup** using box-drawing characters (`┌ ┐ └ ┘ ─ │ ├ ┤ ┬ ┴ ┼`) showing the key regions: header, sidebar, main area, cards, forms, tables, etc. Keep each mockup under 20 lines, monospace-aligned.
+**If Change scope is `Incremental change` → skip 2b entirely.** The layout already exists; do not invent screens, alternative layouts, or mockups. Go straight to Phase 3 and plan the change against the existing component you identified in 2a.
+
+Otherwise, generate **2–3 distinct layout approaches** for the new surface. For each approach, draw an **ASCII mockup** using box-drawing characters (`┌ ┐ └ ┘ ─ │ ├ ┤ ┬ ┴ ┼`) showing the key regions: header, sidebar, main area, cards, forms, tables, etc. Keep each mockup under 20 lines, monospace-aligned.
+
+**Use the real feature names, labels, and data from the request and module context — never placeholder or example UI copy from an unrelated feature.**
 
 Present them via the interactive question tool with each ASCII mockup placed in the option's `preview` field, so the user sees them side-by-side. Each option must include:
 
@@ -60,7 +70,7 @@ Wait for the user to select one approach before continuing.
 
 ## Phase 3 — Final Plan
 
-Output this section only **after** Phase 2 selections are made (or immediately after Phase 1 for backend-only tasks).
+Output this section only **after** Phase 2 selections are made — or immediately after Phase 1 for backend-only tasks, or after 2a for incremental UI changes (no layout selection needed).
 
 ### Restatement (refined)
 

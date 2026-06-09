@@ -8,6 +8,7 @@ import {
   moduleFilename,
 } from './context.js';
 import { buildMandatoryStandards } from './standards.js';
+import { plainChatInteractive } from './command-transpile.js';
 
 // Generates Gemini CLI context: a root GEMINI.md (the CLAUDE.md analog) that
 // @imports per-module context written under .gemini/context/, plus a merge-safe
@@ -200,12 +201,14 @@ export function generateGeminiCommands(cwd, templateCommandsDir, { force = false
 }
 
 function mdToToml(name, md) {
-  const body = stripFrontmatter(md)
-    .replace(/\$ARGUMENTS/g, '{{args}}')        // Gemini arg placeholder
-    .replace(/!`([^`]+)`/g, '!{$1}')            // Claude exec → Gemini exec shorthand
-    .replace(/\.claude\/context\//g, '.gemini/context/')
-    .replace(/\.claude\/skills\//g, '.gemini/skills/')
-    .trim();
+  const body = plainChatInteractive(
+    stripFrontmatter(md)
+      .replace(/\$ARGUMENTS/g, '{{args}}')        // Gemini arg placeholder
+      .replace(/!`([^`]+)`/g, '!{$1}')            // Claude exec → Gemini exec shorthand
+      .replace(/\.claude\/context\//g, '.gemini/context/')
+      .replace(/\.claude\/skills\//g, '.gemini/skills/')
+      .trim()
+  );
 
   const description = describeCommand(name);
 

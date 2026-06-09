@@ -1,6 +1,6 @@
 {
   "name": "promptpilot-ai",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "AI context layer for Claude Code, Cursor, Gemini CLI, and Antigravity — scans your web, backend, or mobile codebase once so AI understands your architecture, stack, and patterns without blind file hunting",
   "type": "module",
   "bin": {

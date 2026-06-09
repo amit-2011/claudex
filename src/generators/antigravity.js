@@ -8,6 +8,7 @@ import {
   moduleFilename,
 } from './context.js';
 import { buildMandatoryStandards } from './standards.js';
+import { plainChatInteractive } from './command-transpile.js';
 
 // Generates config for Google Antigravity (agent-first IDE, Gemini-based).
 // Antigravity natively reads the universal AGENTS.md (since v1.20.3), so the
@@ -106,12 +107,14 @@ export function generateAntigravityWorkflows(cwd, templateCommandsDir, { force =
 }
 
 function toWorkflow(name, md) {
-  const body = stripFrontmatter(md)
-    .replace(/\$ARGUMENTS/g, 'the request provided with this command')
-    .replace(/!`([^`]+)`/g, '`$1`')             // drop Claude exec marker → plain code span
-    .replace(/\.claude\/context\//g, '.agents/rules/')
-    .replace(/\.claude\/skills\//g, '.agents/skills/')
-    .trim();
+  const body = plainChatInteractive(
+    stripFrontmatter(md)
+      .replace(/\$ARGUMENTS/g, 'the request provided with this command')
+      .replace(/!`([^`]+)`/g, '`$1`')             // drop Claude exec marker → plain code span
+      .replace(/\.claude\/context\//g, '.agents/rules/')
+      .replace(/\.claude\/skills\//g, '.agents/skills/')
+      .trim()
+  );
 
   // Antigravity workflows begin with YAML frontmatter carrying `description:`;
   // the filename (minus .md) is the command name.

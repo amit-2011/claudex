@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync } from 'fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, renameSync, rmdirSync } from 'fs';
 import { join } from 'path';
 import {
   buildArchitecture,
@@ -14,21 +14,28 @@ import { plainChatInteractive } from './command-transpile.js';
 // Antigravity natively reads the universal AGENTS.md (since v1.20.3), so the
 // project rules + standards come for free from agents-md.js. Here we add the
 // two tool-specific niceties:
-//   - .agents/rules/*.md  — glob-scoped rules (the Cursor .mdc analog)
-//   - .agents/workflows/*.md — Markdown slash commands ("Workflows")
+//   - .agent/rules/*.md  — glob-scoped rules (the Cursor .mdc analog)
+//   - .agent/workflows/*.md — Markdown slash commands ("Workflows")
 //
-// [U] CONVENTIONS TO VERIFY against a live Antigravity build before relying on
-// them (docs are a non-scrapable SPA — values below are the best-confirmed):
-//   - rules dir is `.agents` (plural, current default) w/ legacy `.agent`
+// Conventions confirmed against antigravity.google/docs/rules-workflows:
+//   - workspace dir is `.agent` (SINGULAR). v0.10.0 wrongly wrote `.agents`
+//     (plural) — Antigravity never read it, so /plan and /sync were invisible.
+//     migrateLegacyAgentsDir() moves those files over. NOTE: `.agents` (plural)
+//     is the workspace dir of the separate Antigravity CLI (the Gemini CLI
+//     successor) — never delete non-empty `.agents` content.
 //   - rule frontmatter keys `trigger:` / `globs:` and the four activation modes
+//   - workflow `description:` must be a single-line plain string (folded block
+//     scalars like `description: >` crash Antigravity's workflow parser and
+//     hide ALL slash commands)
 //   - workflows have no confirmed arg-placeholder syntax → free-text args
 //   - 12,000-char limit per rule file (our files are well under)
 
-// ── .agents/rules/*.md (glob-scoped) ─────────────────────────────────
+// ── .agent/rules/*.md (glob-scoped) ───────────────────────────────────
 export function generateAntigravity(cwd, { fileData, stack, modules, patterns }) {
   if (patterns?.stateManagement) stack = { ...stack, stateManagement: patterns.stateManagement };
+  migrateLegacyAgentsDir(cwd);
 
-  const rulesDir = join(cwd, '.agents', 'rules');
+  const rulesDir = join(cwd, '.agent', 'rules');
   const modulesDir = join(rulesDir, 'modules');
   mkdirSync(modulesDir, { recursive: true });
 
@@ -62,7 +69,8 @@ export function generateAntigravity(cwd, { fileData, stack, modules, patterns })
 }
 
 export function regenerateAntigravityRules(cwd, modules) {
-  const modulesDir = join(cwd, '.agents', 'rules', 'modules');
+  migrateLegacyAgentsDir(cwd);
+  const modulesDir = join(cwd, '.agent', 'rules', 'modules');
   mkdirSync(modulesDir, { recursive: true });
   for (const mod of modules) {
     writeFileSync(
@@ -85,11 +93,12 @@ function rule({ alwaysOn = false, globs = '', desc = '' }, content) {
   return fm.join('\n') + content;
 }
 
-// ── .agents/workflows/*.md (Markdown slash commands) ─────────────────
+// ── .agent/workflows/*.md (Markdown slash commands) ──────────────────
 // Transpiled from the shared Markdown command templates: rewrite .claude/ paths
 // to the Antigravity equivalents and drop $ARGUMENTS (free-text args).
 export function generateAntigravityWorkflows(cwd, templateCommandsDir, { force = false } = {}) {
-  const dir = join(cwd, '.agents', 'workflows');
+  migrateLegacyAgentsDir(cwd);
+  const dir = join(cwd, '.agent', 'workflows');
   mkdirSync(dir, { recursive: true });
 
   const written = [];
@@ -111,8 +120,8 @@ function toWorkflow(name, md) {
     stripFrontmatter(md)
       .replace(/\$ARGUMENTS/g, 'the request provided with this command')
       .replace(/!`([^`]+)`/g, '`$1`')             // drop Claude exec marker → plain code span
-      .replace(/\.claude\/context\//g, '.agents/rules/')
-      .replace(/\.claude\/skills\//g, '.agents/skills/')
+      .replace(/\.claude\/context\//g, '.agent/rules/')
+      .replace(/\.claude\/skills\//g, '.agent/skills/')
       .trim()
   );
 
@@ -139,5 +148,86 @@ function describeWorkflow(name) {
 
 // ── helpers ───────────────────────────────────────────────────────────
 export function antigravityInstalled(cwd) {
+  return (
+    existsSync(join(cwd, '.agent', 'rules')) ||
+    existsSync(join(cwd, '.agent', 'workflows')) ||
+    hasLegacyAgentsDir(cwd)
+  );
+}
+
+// v0.10.0 wrote into `.agents/` (plural) — a dir Antigravity never reads.
+export function hasLegacyAgentsDir(cwd) {
   return existsSync(join(cwd, '.agents', 'rules')) || existsSync(join(cwd, '.agents', 'workflows'));
+}
+
+// Move the v0.10.0 output (`.agents/rules`, `.agents/workflows`, plus the
+// per-machine `.last-sync` / `.pp-stats.json` markers) to `.agent/`. Only the
+// emptied dirs are removed — `.agents/` itself may belong to the Antigravity
+// CLI (skills/, mcp_config.json, hooks.json), so anything we didn't write
+// stays untouched and `.agents/` is only deleted when it ends up empty.
+export function migrateLegacyAgentsDir(cwd) {
+  const legacy = join(cwd, '.agents');
+  if (!existsSync(legacy)) return false;
+
+  let moved = false;
+  for (const sub of ['rules', 'workflows']) {
+    if (moveTree(join(legacy, sub), join(cwd, '.agent', sub))) {
+      moved = true;
+      fixLegacyPathRefs(join(cwd, '.agent', sub)); // bodies reference `.agents/...` paths
+    }
+  }
+  for (const marker of ['.last-sync', '.pp-stats.json']) {
+    const src = join(legacy, marker);
+    if (!existsSync(src)) continue;
+    const dest = join(cwd, '.agent', marker);
+    try {
+      mkdirSync(join(cwd, '.agent'), { recursive: true });
+      if (!existsSync(dest)) renameSync(src, dest);
+      moved = true;
+    } catch {}
+  }
+  try { rmdirSync(legacy); } catch {} // only succeeds when empty — by design
+  return moved;
+}
+
+// v0.10.0-generated bodies point at `.agents/rules/` etc. — rewrite to `.agent/`.
+function fixLegacyPathRefs(dir) {
+  try {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, entry.name);
+      if (entry.isDirectory()) { fixLegacyPathRefs(p); continue; }
+      if (!entry.name.endsWith('.md')) continue;
+      const md = readFileSync(p, 'utf8');
+      const fixed = md.replace(/\.agents\/(rules|workflows|skills)\//g, '.agent/$1/');
+      if (fixed !== md) writeFileSync(p, fixed);
+    }
+  } catch {}
+}
+
+// Recursively move a directory's files, skipping any path that already exists
+// at the destination; removes source dirs that end up empty.
+function moveTree(srcDir, destDir) {
+  if (!existsSync(srcDir)) return false;
+  let moved = false;
+  let entries;
+  try {
+    mkdirSync(destDir, { recursive: true });
+    entries = readdirSync(srcDir, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  for (const entry of entries) {
+    const src = join(srcDir, entry.name);
+    const dest = join(destDir, entry.name);
+    try {
+      if (entry.isDirectory()) {
+        moved = moveTree(src, dest) || moved;
+      } else if (!existsSync(dest)) {
+        renameSync(src, dest);
+        moved = true;
+      }
+    } catch {}
+  }
+  try { rmdirSync(srcDir); } catch {}
+  return moved;
 }

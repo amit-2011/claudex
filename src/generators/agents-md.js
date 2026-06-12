@@ -101,12 +101,12 @@ function buildBlock(scanData, targets) {
   if (wants(targets, 'claude')) deeper.push('- Per-module detail: `.claude/context/` (Claude Code).');
   if (wants(targets, 'cursor')) deeper.push('- Per-module detail: `.cursor/rules/` (Cursor).');
   if (wants(targets, 'gemini')) deeper.push('- Per-module detail: `.gemini/context/` (Gemini CLI).');
-  if (wants(targets, 'antigravity')) deeper.push('- Per-module detail: `.agents/rules/` (Antigravity).');
+  if (wants(targets, 'antigravity')) deeper.push('- Per-module detail: `.agent/rules/` (Antigravity).');
   const patternsPath =
     wants(targets, 'claude') ? '.claude/context/patterns.md'
     : wants(targets, 'gemini') ? '.gemini/context/patterns.md'
     : wants(targets, 'cursor') ? '.cursor/rules/patterns.mdc'
-    : '.agents/rules/patterns.md';
+    : '.agent/rules/patterns.md';
   deeper.push(`- Conventions detail: \`${patternsPath}\`.`);
   deeper.push('- Multi-repo frontend↔backend API map: `.claude/context/bridge.md` (if present).');
 

@@ -15,7 +15,7 @@ import { installStatusline, refreshStatuslineScript } from '../generators/status
 import { generateSkills, skillsInstalled } from '../generators/skills.js';
 import { generateAgents, generateGeminiAgents, agentsInstalled } from '../generators/agents.js';
 import { generateGemini, writeGeminiSettings, generateGeminiCommands, regenerateGeminiModuleFiles } from '../generators/gemini.js';
-import { generateAntigravity, generateAntigravityWorkflows, regenerateAntigravityRules } from '../generators/antigravity.js';
+import { generateAntigravity, generateAntigravityWorkflows, regenerateAntigravityRules, antigravityInstalled } from '../generators/antigravity.js';
 import { writeStatsCache } from '../utils/stats-cache.js';
 import { installGitHook } from '../hooks/install.js';
 import { select, multiSelect, input } from '../utils/prompt.js';
@@ -106,10 +106,10 @@ async function maybeGenerateSkills(cwd, scanData, targets) {
   console.log('');
 
   // Antigravity has no separate skill files — that guidance is already baked into
-  // .agents/rules/. If no skill-capable tool is selected, don't prompt.
+  // .agent/rules/. If no skill-capable tool is selected, don't prompt.
   const skillTargets = ['claude', 'gemini', 'cursor'].filter((t) => wants(targets, t));
   if (!skillTargets.length) {
-    console.log(`  ${dim('Skill guidance for Antigravity is embedded in .agents/rules/ — no separate skill files.')}`);
+    console.log(`  ${dim('Skill guidance for Antigravity is embedded in .agent/rules/ — no separate skill files.')}`);
     return;
   }
 
@@ -245,7 +245,7 @@ async function runMultiRepoInit(cwd, subRepos, target = ['claude']) {
     console.log(`  ${tick} ${bold('Ready!')} Open this folder with Gemini CLI — context is in ${cyan('GEMINI.md')} + ${cyan('.gemini/')}`);
   }
   if (wants(targets, 'antigravity')) {
-    console.log(`  ${tick} ${bold('Ready!')} Open this folder in Antigravity — rules in ${cyan('.agents/rules/')}, AGENTS.md auto-loaded`);
+    console.log(`  ${tick} ${bold('Ready!')} Open this folder in Antigravity — rules in ${cyan('.agent/rules/')}, AGENTS.md auto-loaded`);
   }
   console.log('');
 }
@@ -465,10 +465,10 @@ async function writeOutputFiles(cwd, scanData, isNew, target = ['claude']) {
 
   if (wants(targets, 'antigravity')) {
     const agWritten = generateAntigravity(cwd, scanData);
-    console.log(`  ${tick} ${cyan('.agents/rules/')} ${dim('(architecture, stack, patterns — glob-scoped)')}`);
-    printModules(agWritten, '.agents/rules');
+    console.log(`  ${tick} ${cyan('.agent/rules/')} ${dim('(architecture, stack, patterns — glob-scoped)')}`);
+    printModules(agWritten, '.agent/rules');
     const flows = generateAntigravityWorkflows(cwd, COMMANDS_DIR());
-    if (flows.length) console.log(`  ${tick} ${cyan('.agents/workflows/')} ${dim(`(${flows.length} workflows)`)}`);
+    if (flows.length) console.log(`  ${tick} ${cyan('.agent/workflows/')} ${dim(`(${flows.length} workflows)`)}`);
   }
 
   const agentsMdStatus = generateAgentsMd(cwd, scanData, targets);
@@ -870,7 +870,7 @@ function detectExistingTargets(cwd) {
   if (existsSync(join(cwd, '.claude', 'context')) || existsSync(join(cwd, 'CLAUDE.md'))) t.push('claude');
   if (existsSync(join(cwd, '.cursor', 'rules'))) t.push('cursor');
   if (existsSync(join(cwd, 'GEMINI.md')) || existsSync(join(cwd, '.gemini', 'context'))) t.push('gemini');
-  if (existsSync(join(cwd, '.agents', 'rules')) || existsSync(join(cwd, '.agents', 'workflows'))) t.push('antigravity');
+  if (antigravityInstalled(cwd)) t.push('antigravity'); // covers `.agent` + legacy `.agents` (v0.10.0)
   return t.length ? t : ['claude'];
 }
 
@@ -911,7 +911,7 @@ function printSuccess(cwd, scanData, isNew, target = ['claude']) {
   }
 
   if (wants(targets, 'antigravity')) {
-    console.log(`  ${tick} ${bold('Ready for Antigravity!')} Rules in ${cyan('.agents/rules/')}; workflows in ${cyan('.agents/workflows/')}`);
+    console.log(`  ${tick} ${bold('Ready for Antigravity!')} Rules in ${cyan('.agent/rules/')}; workflows in ${cyan('.agent/workflows/')}`);
     console.log(`    ${dim('AGENTS.md is auto-loaded; run /ask or /plan as a workflow')}`);
     console.log('');
   }

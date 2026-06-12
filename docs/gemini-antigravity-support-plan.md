@@ -169,7 +169,7 @@ Run the adversarial-review workflow before each release. **Before coding Phase 4
 
 ### Open items to verify before coding Antigravity Phase 2
 
-1. **[U]** `.agents` (plural) vs `.agent` (singular) for rules/workflows/skills — primary rules doc says plural is default w/ legacy singular; confirm what the installed build actually writes.
+1. ~~**[U]** `.agents` (plural) vs `.agent` (singular) for rules/workflows/skills~~ **RESOLVED (June 2026): it is `.agent` — SINGULAR.** The official rules-workflows docs and live builds read `.agent/rules/` + `.agent/workflows/`; v0.10.0 shipped with `.agents` (plural) and its workflows were invisible (the "/plan, /sync not showing" bug). Fixed + auto-migration in `migrateLegacyAgentsDir()`. Caution: `.agents` (plural) is the workspace dir of the separate **Antigravity CLI** (the Gemini CLI successor, May 2026) — the two products use different dirs.
 2. **[U]** MCP config path `~/.gemini/config/mcp_config.json` and its schema (`serverUrl`, no `timeout`, `disabled`, `authProviderType`) — secondary sources only; confirm via the in-app "Open MCP Config" button.
 3. **[U]** `.agents/rules/*.md` frontmatter key names (`trigger:` / `globs:`) and the four activation modes.
 4. **[U]** AGENTS.md precedence vs GEMINI.md, nested-AGENTS.md opt-in, and any global `~/.gemini/AGENTS.md` — only "reads AGENTS.md in addition to GEMINI.md" is primary.

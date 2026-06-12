@@ -61,7 +61,7 @@ Open your project in any of them — context loads automatically.
 ```mermaid
 flowchart LR
     A[Your Codebase] -->|scan once| B[promptpilot-ai]
-    B -->|generates| C[.claude/context/<br/>.cursor/rules/<br/>GEMINI.md + .gemini/<br/>.agents/rules/ + AGENTS.md]
+    B -->|generates| C[.claude/context/<br/>.cursor/rules/<br/>GEMINI.md + .gemini/<br/>.agent/rules/ + AGENTS.md]
     C -->|auto-loaded by| D[Claude Code / Cursor /<br/>Gemini CLI / Antigravity]
     D -->|~6K tokens per task| E[Faster, cheaper AI]
 ```
@@ -163,7 +163,7 @@ your-project/
 ```
 your-project/
 ├── AGENTS.md                          ← read natively by Antigravity
-└── .agents/
+└── .agent/
     ├── rules/                         ← glob-scoped rules (the Cursor .mdc analog)
     │   ├── architecture.md            ← trigger: always_on
     │   ├── stack.md                   ← trigger: always_on
@@ -173,9 +173,9 @@ your-project/
         └── ask.md  plan.md  sync.md  pp-stats.md  pp-help.md
 ```
 
-Antigravity reads `AGENTS.md` natively (v1.20.3+), so the shared standards apply with zero extra config; `.agents/rules/` adds glob-scoped per-module context and `.agents/workflows/` adds Markdown slash commands.
+Antigravity reads `AGENTS.md` natively (v1.20.3+), so the shared standards apply with zero extra config; `.agent/rules/` adds glob-scoped per-module context and `.agent/workflows/` adds Markdown slash commands.
 
-> ℹ️ Antigravity's config conventions are newer and partly community-documented. The exact rule frontmatter keys / `.agents` directory name may evolve — see [`docs/gemini-antigravity-support-plan.md`](./docs/gemini-antigravity-support-plan.md) for the verification notes.
+> ℹ️ Antigravity's workspace dir is `.agent` (singular — per the official rules-workflows docs). Versions ≤0.10.0 wrongly wrote `.agents` (plural), which Antigravity ignores; running `npx promptpilot-ai sync` migrates those files automatically. Note `.agents` (plural) is used by the separate **Antigravity CLI** — see [`docs/gemini-antigravity-support-plan.md`](./docs/gemini-antigravity-support-plan.md).
 
 </details>
 
@@ -191,7 +191,7 @@ It bakes in **mandatory engineering standards**, adapted to your detected stack:
 - **Backend** (if detected) — API performance (no N+1, paginate, index hot columns), reuse the service layer, validate every input, parameterize SQL.
 - **Frontend** (if detected) — UI consistency (reuse components, one styling system), no duplicate UI, accessibility, responsive.
 
-These same standards are injected into every tool's context — `CLAUDE.md` + `.claude/context/patterns.md`, `.cursor/rules/patterns.mdc`, `GEMINI.md` + `.gemini/context/patterns.md`, and `.agents/rules/patterns.md` — so **every tool enforces them**.
+These same standards are injected into every tool's context — `CLAUDE.md` + `.claude/context/patterns.md`, `.cursor/rules/patterns.mdc`, `GEMINI.md` + `.gemini/context/patterns.md`, and `.agent/rules/patterns.md` — so **every tool enforces them**.
 
 ### Self-updating rules
 
@@ -252,7 +252,7 @@ Now when you say `/ask add a user profile page`, AI reads `bridge.md`, finds the
 
 ### Slash Commands (after init)
 
-Generated for Claude Code (`.claude/commands/*.md`), Gemini CLI (`.gemini/commands/*.toml`), and Antigravity (`.agents/workflows/*.md`).
+Generated for Claude Code (`.claude/commands/*.md`), Gemini CLI (`.gemini/commands/*.toml`), and Antigravity (`.agent/workflows/*.md`).
 
 | Command | Description |
 |---|---|
@@ -313,7 +313,7 @@ Opt in during `init` and promptpilot-ai generates **skills** pre-filled with you
 - **Claude Code** → `.claude/skills/<name>/SKILL.md` (auto-discovered; first run asks for workspace trust).
 - **Gemini CLI** → `.gemini/skills/<name>/SKILL.md` (same SKILL.md format).
 - **Cursor** → equivalent `.cursor/rules/<name>.mdc`, glob-scoped so they apply only to relevant files.
-- **Antigravity** → the same guidance lives in the glob-scoped `.agents/rules/`.
+- **Antigravity** → the same guidance lives in the glob-scoped `.agent/rules/`.
 - Refreshed automatically on every `npx promptpilot-ai sync`.
 
 ---
@@ -411,7 +411,7 @@ Yes. Without `.git`, the filesystem is walked directly (skipping `node_modules`,
 Yes — at `init`, select any combination (e.g. `1,3` for Claude Code + Gemini CLI). It generates each tool's files simultaneously and they all share one root `AGENTS.md`. `sync` auto-detects which tools you set up and refreshes them all.
 
 **Is it safe to commit the generated files?**
-Yes — commit the **context** files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.claude/context/`, `.cursor/rules/`, `.gemini/`, `.agents/`, skills, commands). Teammates get context immediately without running init. The **per-machine** files (`.last-sync`, `.pp-stats.json`, and the Cursor update notice) are auto-added to `.gitignore` at init/sync so multiple developers on one repo never churn or merge-conflict on them. If an older setup already committed them, the next `init`/`sync` untracks them for you (`git rm --cached`, keeping your local copy) — just commit that change once.
+Yes — commit the **context** files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.claude/context/`, `.cursor/rules/`, `.gemini/`, `.agent/`, skills, commands). Teammates get context immediately without running init. The **per-machine** files (`.last-sync`, `.pp-stats.json`, and the Cursor update notice) are auto-added to `.gitignore` at init/sync so multiple developers on one repo never churn or merge-conflict on them. If an older setup already committed them, the next `init`/`sync` untracks them for you (`git rm --cached`, keeping your local copy) — just commit that change once.
 
 **How do I turn the status bar on or off?**
 It's opt-in — `init` asks before enabling it. To turn it off later, remove the `statusLine` block from `.claude/settings.json` (and optionally delete `.claude/pp-statusline.mjs`). To turn it on, run `npx promptpilot-ai init` again, or add the `statusLine` block manually pointing at `node .claude/pp-statusline.mjs`.

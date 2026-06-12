@@ -18,7 +18,7 @@ export function generateSkills(cwd, scanData, targets = ['claude']) {
     if (wants(targets, 'claude')) { writeSkillDir(cwd, '.claude', skill); wrote = true; }
     if (wants(targets, 'gemini')) { writeSkillDir(cwd, '.gemini', skill); wrote = true; }
     if (wants(targets, 'cursor')) { writeCursorRule(cwd, skill); wrote = true; }
-    if (wrote) written.push(skill.name); // Antigravity has no skill files — guidance lives in .agents/rules/
+    if (wrote) written.push(skill.name); // Antigravity has no skill files — guidance lives in .agent/rules/
   }
   return written;
 }

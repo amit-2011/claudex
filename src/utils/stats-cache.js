@@ -29,7 +29,7 @@ const STATS_SOURCES = {
   claude: { base: ['.claude', 'context'], ext: '.md', root: 'CLAUDE.md' },
   gemini: { base: ['.gemini', 'context'], ext: '.md', root: 'GEMINI.md' },
   cursor: { base: ['.cursor', 'rules'], ext: '.mdc' },
-  antigravity: { base: ['.agents', 'rules'], ext: '.md' },
+  antigravity: { base: ['.agent', 'rules'], ext: '.md' },
 };
 
 export function writeStatsCache(cwd, scanData, target = ['claude']) {
@@ -73,7 +73,8 @@ export function writeStatsCache(cwd, scanData, target = ['claude']) {
 }
 
 export function readStatsCache(cwd) {
-  for (const dir of ['.claude', '.cursor', '.gemini', '.agents']) {
+  // `.agents` stays last for caches written by v0.10.0 before migration runs.
+  for (const dir of ['.claude', '.cursor', '.gemini', '.agent', '.agents']) {
     try {
       return JSON.parse(readFileSync(join(cwd, dir, CACHE_NAME), 'utf8'));
     } catch {}

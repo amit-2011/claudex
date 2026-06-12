@@ -37,7 +37,7 @@ function readLastSync(cwd, target) {
   const dir =
     target === 'cursor' ? '.cursor'
     : target === 'gemini' ? '.gemini'
-    : target === 'antigravity' ? '.agents'
+    : target === 'antigravity' ? '.agent'
     : '.claude';
   try {
     const ms = parseInt(readFileSync(join(cwd, dir, '.last-sync'), 'utf8'), 10);

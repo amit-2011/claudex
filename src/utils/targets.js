@@ -42,7 +42,9 @@ export function primaryTool(targets) {
   return PRIMARY_ORDER.find((tool) => t.includes(tool)) || 'claude';
 }
 
-const TOOL_DIR = { claude: '.claude', cursor: '.cursor', gemini: '.gemini', antigravity: '.agents' };
+// Antigravity (IDE) reads `.agent` — SINGULAR. `.agents` (plural) belongs to
+// the separate Antigravity CLI and was also our buggy v0.10.0 output dir.
+const TOOL_DIR = { claude: '.claude', cursor: '.cursor', gemini: '.gemini', antigravity: '.agent' };
 
 // The directory that holds the per-project sync marker + stats cache.
 export function primaryDir(targets) {
